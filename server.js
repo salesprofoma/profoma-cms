@@ -100,7 +100,7 @@ app.get("/api/requests", (req, res) => {
         `SELECT 
           id,
           company,
-          contact_person,
+          contactPerson,
           email,
           phone,
           region,
