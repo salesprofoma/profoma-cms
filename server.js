@@ -106,14 +106,14 @@ app.get("/api/requests", (req, res) => {
           region,
           checkin,
           duration,
-          total_persons,
-          persons_per_room,
+          totalPersons,
+          personsPerRoom,
           budget,
           included,
           notes,
-          created_at
+          createdAt
         FROM requests
-        ORDER BY created_at DESC`
+        ORDER BY datetime(createdAt) DESC`
       )
       .all();
 
