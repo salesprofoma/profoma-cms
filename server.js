@@ -92,3 +92,34 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log("Server draait op port " + PORT);
 });
+// 👉 Overzicht van alle aanvragen
+app.get("/api/requests", (req, res) => {
+  try {
+    const rows = db
+      .prepare(
+        `SELECT 
+          id,
+          company,
+          contact_person,
+          email,
+          phone,
+          region,
+          checkin,
+          duration,
+          total_persons,
+          persons_per_room,
+          budget,
+          included,
+          notes,
+          created_at
+        FROM requests
+        ORDER BY created_at DESC`
+      )
+      .all();
+
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error("Fout bij ophalen van aanvragen:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
