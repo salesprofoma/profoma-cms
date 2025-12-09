@@ -11,7 +11,7 @@ app.use(express.json());
 // Database openen (Render + lokaal compatibel)
 const db = new Database(path.join(__dirname, "profoma.db"));
 
-// Tabel maken (eenmalig)
+// Tabel maken (eenmalig, als hij nog niet bestaat)
 db.prepare(`
   CREATE TABLE IF NOT EXISTS requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,7 +50,7 @@ app.post("/api/request", (req, res) => {
     personsPerRoom,
     budget,
     included,
-    notes
+    notes,
   } = req.body;
 
   const createdAt = new Date().toISOString();
@@ -80,19 +80,13 @@ app.post("/api/request", (req, res) => {
     );
 
     res.json({ success: true });
-
   } catch (err) {
     console.error("DB fout:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// SERVER START (Render gebruikt proces.env.PORT)
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log("Server draait op port " + PORT);
-});
-// 👉 Overzicht van alle aanvragen
+// 👉 Overzicht van alle aanvragen (voor je adminpagina)
 app.get("/api/requests", (req, res) => {
   try {
     const rows = db
@@ -122,4 +116,10 @@ app.get("/api/requests", (req, res) => {
     console.error("Fout bij ophalen van aanvragen:", err);
     res.status(500).json({ success: false, error: "Database fout" });
   }
+});
+
+// SERVER START (Render gebruikt process.env.PORT)
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log("Server draait op port " + PORT);
 });
