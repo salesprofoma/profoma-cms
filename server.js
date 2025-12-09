@@ -1,20 +1,19 @@
 const express = require("express");
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
 const cors = require("cors");
+const path = require("path");
+const Database = require("better-sqlite3");
 
+// Express app
 const app = express();
-
-// CORS toestaan (zodat Wix mag praten met je server)
 app.use(cors());
 app.use(express.json());
 
-// Database openen
-const db = new sqlite3.Database(path.join(__dirname, "profoma.db"));
+// Database openen (Render + lokaal compatibel)
+const db = new Database(path.join(__dirname, "profoma.db"));
 
-// Tabel aanmaken als hij nog niet bestaat
-db.run(`
-  CREATE TABLE IF NOT EXISTS housing_requests (
+// Tabel maken (eenmalig)
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     company TEXT,
     contactPerson TEXT,
@@ -30,14 +29,14 @@ db.run(`
     notes TEXT,
     createdAt TEXT
   )
-`);
+`).run();
 
-// Test route
+// TEST ROUTE
 app.get("/", (req, res) => {
-  res.send("Profoma Housing CMS werkt! 🚀");
+  res.send("Profoma CMS backend werkt! 🚀");
 });
 
-// API: aanvraag opslaan
+// POST → bewaren aanvraag
 app.post("/api/request", (req, res) => {
   const {
     company,
@@ -51,47 +50,44 @@ app.post("/api/request", (req, res) => {
     personsPerRoom,
     budget,
     included,
-    notes,
+    notes
   } = req.body;
 
   const createdAt = new Date().toISOString();
-  const includedString = Array.isArray(included) ? included.join(",") : "";
+  const includedString = Array.isArray(included) ? included.join(", ") : "";
 
-  const stmt = db.prepare(`
-    INSERT INTO housing_requests (
-      company, contactPerson, email, phone,
-      region, checkin, duration,
-      totalPersons, personsPerRoom, budget,
-      included, notes, createdAt
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO requests
+      (company, contactPerson, email, phone, region, checkin, duration, totalPersons, personsPerRoom, budget, included, notes, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
-  stmt.run(
-    company || "",
-    contactPerson || "",
-    email || "",
-    phone || "",
-    region || "",
-    checkin || "",
-    duration || "",
-    totalPersons || 0,
-    personsPerRoom || "",
-    budget || "",
-    includedString,
-    notes || "",
-    createdAt,
-    (err) => {
-      if (err) {
-        console.error("DB fout:", err);
-        return res.status(500).json({ success: false, error: "DB error" });
-      }
-      res.json({ success: true });
-    }
-  );
+    stmt.run(
+      company || "",
+      contactPerson || "",
+      email || "",
+      phone || "",
+      region || "",
+      checkin || "",
+      duration || "",
+      totalPersons || 0,
+      personsPerRoom || "",
+      budget || "",
+      includedString,
+      notes || "",
+      createdAt
+    );
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error("DB fout:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
-// Server starten (BELANGRIJK VOOR RENDER)
+// SERVER START (Render gebruikt proces.env.PORT)
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log("Server draait op port " + PORT);

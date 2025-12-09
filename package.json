@@ -4,16 +4,15 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-  "start": "node server.js"
-},
-
+    "start": "node server.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "better-sqlite3": "^12.5.0",
     "cors": "^2.8.5",
-    "express": "^5.2.1",
-    "sqlite3": "^5.1.7"
+    "express": "^5.2.1"
   }
 }
