@@ -1,100 +1,97 @@
 const express = require("express");
-const cors = require("cors");
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
+const cors = require("cors");
 
 const app = express();
 
-// CORS toestaan (zodat Wix -> jouw laptop mag praten)
+// CORS toestaan (zodat Wix mag praten met je server)
 app.use(cors());
-
-// JSON body parsing
 app.use(express.json());
 
-// Database openen (bestand wordt automatisch aangemaakt)
+// Database openen
 const db = new sqlite3.Database(path.join(__dirname, "profoma.db"));
 
-// Tabel aanmaken (1x, daarna bestaat hij gewoon)
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS housing_requests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      created_at TEXT DEFAULT (datetime('now')),
-      company TEXT,
-      contact_person TEXT,
-      email TEXT,
-      phone TEXT,
-      region TEXT,
-      checkin TEXT,
-      duration TEXT,
-      total_persons INTEGER,
-      persons_per_room TEXT,
-      budget TEXT,
-      included TEXT,
-      notes TEXT
-    )
-  `);
-});
+// Tabel aanmaken als hij nog niet bestaat
+db.run(`
+  CREATE TABLE IF NOT EXISTS housing_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company TEXT,
+    contactPerson TEXT,
+    email TEXT,
+    phone TEXT,
+    region TEXT,
+    checkin TEXT,
+    duration TEXT,
+    totalPersons INTEGER,
+    personsPerRoom TEXT,
+    budget TEXT,
+    included TEXT,
+    notes TEXT,
+    createdAt TEXT
+  )
+`);
 
 // Test route
 app.get("/", (req, res) => {
   res.send("Profoma Housing CMS werkt! 🚀");
 });
 
-// API-endpoint waar jouw Wix-formulier naartoe POST
+// API: aanvraag opslaan
 app.post("/api/request", (req, res) => {
   const {
     company,
-    contact_person,
+    contactPerson,
     email,
     phone,
     region,
     checkin,
     duration,
-    total_persons,
-    persons_per_room,
+    totalPersons,
+    personsPerRoom,
     budget,
     included,
     notes,
-  } = req.body || {};
+  } = req.body;
 
-  const stmt = db.prepare(
-    `
-    INSERT INTO housing_requests
-    (company, contact_person, email, phone, region, checkin, duration,
-     total_persons, persons_per_room, budget, included, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `
-  );
+  const createdAt = new Date().toISOString();
+  const includedString = Array.isArray(included) ? included.join(",") : "";
+
+  const stmt = db.prepare(`
+    INSERT INTO housing_requests (
+      company, contactPerson, email, phone,
+      region, checkin, duration,
+      totalPersons, personsPerRoom, budget,
+      included, notes, createdAt
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
 
   stmt.run(
-    company,
-    contact_person,
-    email,
-    phone,
-    region,
-    checkin,
-    duration,
-    total_persons || null,
-    persons_per_room,
-    budget,
-    Array.isArray(included) ? included.join(",") : null,
-    notes,
-    function (err) {
+    company || "",
+    contactPerson || "",
+    email || "",
+    phone || "",
+    region || "",
+    checkin || "",
+    duration || "",
+    totalPersons || 0,
+    personsPerRoom || "",
+    budget || "",
+    includedString,
+    notes || "",
+    createdAt,
+    (err) => {
       if (err) {
-        console.error("DB-fout bij INSERT:", err);
-        return res.status(500).json({ success: false, error: "db_error" });
+        console.error("DB fout:", err);
+        return res.status(500).json({ success: false, error: "DB error" });
       }
-
-      // Succes terug naar de browser
-      res.json({ success: true, id: this.lastID });
+      res.json({ success: true });
     }
   );
-
-  stmt.finalize();
 });
 
-// Server starten
+// Server starten (BELANGRIJK VOOR RENDER)
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log("Server draait op port " + PORT);
