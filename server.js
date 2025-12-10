@@ -1,11 +1,12 @@
 // server.js
-// Profoma CMS backend – aanvragen + adminoverzicht + agenda (jobs) + personeel
+// Profoma CMS backend – aanvragen + adminoverzicht + agenda (jobs) + personeel + medewerker-login
 
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const Database = require("better-sqlite3");
 const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 
 // ====== ENV VARS ======
 const {
@@ -76,9 +77,17 @@ db.prepare(`
     phone TEXT,
     email TEXT,
     role TEXT,
-    active INTEGER DEFAULT 1
+    active INTEGER DEFAULT 1,
+    loginCode TEXT
   )
 `).run();
+
+// Voor bestaande staff-tabellen zonder loginCode-kolom
+try {
+  db.prepare("ALTER TABLE staff ADD COLUMN loginCode TEXT").run();
+} catch (e) {
+  // kolom bestaat al → negeren
+}
 
 // --- Tabel: job_staff (koppeling job ↔ medewerker) ---
 db.prepare(`
@@ -89,6 +98,16 @@ db.prepare(`
     startTime TEXT,
     endTime TEXT,
     notes TEXT
+  )
+`).run();
+
+// --- Tabel: staff_sessions (login sessies voor medewerkers) ---
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS staff_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    staffId INTEGER,
+    token TEXT,
+    createdAt TEXT
   )
 `).run();
 
@@ -182,13 +201,45 @@ Deze mail is automatisch verstuurd door profoma-cms.
   }
 }
 
-// ====== MIDDLEWARE ADMIN AUTH ======
+// ====== HELPERS ======
+
 function checkAdmin(req, res, next) {
   const token = req.headers["x-admin-token"];
   if (!ADMIN_TOKEN || token !== ADMIN_TOKEN) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
   next();
+}
+
+function generateLoginCode(name) {
+  const baseRaw = (name || "").trim().split(" ")[0].toUpperCase();
+  const base = baseRaw.replace(/[^A-Z0-9]/g, "") || "PF";
+  const suffix = Math.floor(1000 + Math.random() * 9000).toString();
+  return base.substring(0, 4) + "-" + suffix;
+}
+
+function createStaffSession(staffId) {
+  const token = crypto.randomBytes(24).toString("hex");
+  const createdAt = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO staff_sessions (staffId, token, createdAt) VALUES (?, ?, ?)`
+  ).run(staffId, token, createdAt);
+  return token;
+}
+
+function getStaffByToken(token) {
+  if (!token) return null;
+  const session = db
+    .prepare(`SELECT staffId FROM staff_sessions WHERE token = ?`)
+    .get(token);
+  if (!session) return null;
+  const staff = db
+    .prepare(
+      `SELECT id, name, phone, email, role, active, loginCode
+       FROM staff WHERE id = ? AND active = 1`
+    )
+    .get(session.staffId);
+  return staff || null;
 }
 
 // ====== ROUTES ======
@@ -419,7 +470,7 @@ app.post("/api/jobs/update-status", checkAdmin, (req, res) => {
 
 // ====== STAFF (MEDEWERKERS) ======
 
-// Medewerker toevoegen
+// Medewerker toevoegen (admin)
 app.post("/api/staff", checkAdmin, (req, res) => {
   const { name, phone, email, role } = req.body;
 
@@ -429,32 +480,35 @@ app.post("/api/staff", checkAdmin, (req, res) => {
       .json({ success: false, error: "Naam is verplicht" });
   }
 
+  const loginCode = generateLoginCode(name);
+
   try {
     const stmt = db.prepare(`
-      INSERT INTO staff (name, phone, email, role, active)
-      VALUES (?, ?, ?, ?, 1)
+      INSERT INTO staff (name, phone, email, role, active, loginCode)
+      VALUES (?, ?, ?, ?, 1, ?)
     `);
 
     const info = stmt.run(
       name,
       phone || "",
       email || "",
-      role || ""
+      role || "",
+      loginCode
     );
 
-    res.json({ success: true, id: info.lastInsertRowid });
+    res.json({ success: true, id: info.lastInsertRowid, loginCode });
   } catch (err) {
     console.error("DB fout (staff):", err);
     res.status(500).json({ success: false, error: "Database fout" });
   }
 });
 
-// Lijst medewerkers (alleen active)
+// Lijst medewerkers (admin)
 app.get("/api/staff", checkAdmin, (req, res) => {
   try {
     const rows = db
       .prepare(
-        `SELECT id, name, phone, email, role, active
+        `SELECT id, name, phone, email, role, active, loginCode
          FROM staff
          WHERE active = 1
          ORDER BY name ASC`
@@ -468,7 +522,7 @@ app.get("/api/staff", checkAdmin, (req, res) => {
   }
 });
 
-// Medewerker aan job koppelen
+// Medewerker aan job koppelen (admin)
 app.post("/api/jobs/assign-staff", checkAdmin, (req, res) => {
   const { jobId, staffId, startTime, endTime, notes } = req.body;
 
@@ -479,7 +533,6 @@ app.post("/api/jobs/assign-staff", checkAdmin, (req, res) => {
   }
 
   try {
-    // simpele INSERT, geen dubbele checks nu
     const stmt = db.prepare(`
       INSERT INTO job_staff (jobId, staffId, startTime, endTime, notes)
       VALUES (?, ?, ?, ?, ?)
@@ -496,6 +549,89 @@ app.post("/api/jobs/assign-staff", checkAdmin, (req, res) => {
     res.json({ success: true, id: info.lastInsertRowid });
   } catch (err) {
     console.error("DB fout (job_staff):", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// ====== STAFF LOGIN & EIGEN ROOSTER ======
+
+// Medewerker login (naam + code)
+app.post("/api/staff/login", (req, res) => {
+  const { name, code } = req.body;
+
+  if (!name || !code) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Naam en code zijn verplicht" });
+  }
+
+  const staff = db
+    .prepare(
+      `SELECT id, name, phone, email, role, active, loginCode
+       FROM staff
+       WHERE active = 1
+         AND name = ? COLLATE NOCASE
+         AND loginCode = ?`
+    )
+    .get(name.trim(), code.trim());
+
+  if (!staff) {
+    return res
+      .status(401)
+      .json({ success: false, error: "Onjuiste combinatie van naam en code" });
+  }
+
+  const token = createStaffSession(staff.id);
+
+  res.json({
+    success: true,
+    token,
+    staff: {
+      id: staff.id,
+      name: staff.name,
+      role: staff.role,
+    },
+  });
+});
+
+// Rooster voor ingelogde medewerker
+app.get("/api/staff/my-jobs", (req, res) => {
+  const token = req.headers["x-staff-token"];
+  const staff = getStaffByToken(token);
+
+  if (!staff) {
+    return res
+      .status(401)
+      .json({ success: false, error: "Niet ingelogd of sessie verlopen" });
+  }
+
+  try {
+    const rows = db
+      .prepare(
+        `SELECT
+          j.id,
+          j.date,
+          j.title,
+          j.location,
+          j.type,
+          j.client,
+          j.status,
+          j.notes,
+          j.createdAt
+        FROM jobs j
+        INNER JOIN job_staff js ON j.id = js.jobId
+        WHERE js.staffId = ?
+        ORDER BY j.date ASC, datetime(j.createdAt) ASC`
+      )
+      .all(staff.id);
+
+    res.json({
+      success: true,
+      staff: { id: staff.id, name: staff.name, role: staff.role },
+      data: rows,
+    });
+  } catch (err) {
+    console.error("Fout bij ophalen rooster:", err);
     res.status(500).json({ success: false, error: "Database fout" });
   }
 });
