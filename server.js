@@ -12,7 +12,7 @@ app.use(express.json());
 // Database openen
 const db = new Database(path.join(__dirname, "profoma.db"));
 
-// Tabel maken (eenmalig)
+// Tabel (LET OP: kolomnamen in camelCase)
 db.prepare(`
   CREATE TABLE IF NOT EXISTS requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,125 +32,152 @@ db.prepare(`
   )
 `).run();
 
-// Nodemailer transporter (Gmail)
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,          // smtp.gmail.com
-  port: Number(process.env.SMTP_PORT) || 465, // 465
-  secure: true,                         // verplicht bij 465
-  auth: {
-    user: process.env.SMTP_USER,        // sales@profoma.nl
-    pass: process.env.SMTP_PASS         // app password
-  }
-});
+// Kleine helpers om rare waardes van Wix veilig te maken
+function safe(v) {
+  return v === undefined || v === null ? "" : String(v);
+}
+function safeNumber(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Mailtransporter (Gmail)
+let mailer = null;
+if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  mailer = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 465),
+    secure: Number(process.env.SMTP_PORT || 465) === 465,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+}
 
 // Test route
 app.get("/", (req, res) => {
   res.send("Profoma CMS backend werkt! 🚀");
 });
 
-// POST → aanvraag opslaan + mail
+// 👉 Aanvraag opslaan
 app.post("/api/request", async (req, res) => {
-  const {
-    company,
-    contactPerson,
-    email,
-    phone,
-    region,
-    checkin,
-    duration,
-    totalPersons,
-    personsPerRoom,
-    budget,
-    included,
-    notes
-  } = req.body;
-
-  const createdAt = new Date().toISOString();
-  const includedString = Array.isArray(included) ? included.join(", ") : "";
-
   try {
-    // In DB opslaan
+    // Zowel camelCase als snake_case accepteren (voor de zekerheid)
+    const company = safe(req.body.company);
+    const contactPerson = safe(
+      req.body.contactPerson || req.body.contact_person
+    );
+    const email = safe(req.body.email);
+    const phone = safe(req.body.phone);
+    const region = safe(req.body.region);
+    const checkin = safe(req.body.checkin);
+    const duration = safe(req.body.duration);
+    const totalPersons = safeNumber(
+      req.body.totalPersons || req.body.total_persons
+    );
+    const personsPerRoom = safe(
+      req.body.personsPerRoom || req.body.persons_per_room
+    );
+    const budget = safe(req.body.budget);
+    const notes = safe(req.body.notes);
+
+    const includedRaw =
+      req.body.included !== undefined ? req.body.included : [];
+    const includedString = Array.isArray(includedRaw)
+      ? includedRaw.join(", ")
+      : safe(includedRaw);
+
+    const createdAt = new Date().toISOString();
+
+    // ⚠️ LET OP: 13 kolommen, 13 waardes (geen 14 meer!)
     const stmt = db.prepare(`
       INSERT INTO requests
-      (company, contactPerson, email, phone, region, checkin, duration,
-       totalPersons, personsPerRoom, budget, included, notes, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (company, contactPerson, email, phone, region, checkin, duration, totalPersons, personsPerRoom, budget, included, notes, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
-      company || "",
-      contactPerson || "",
-      email || "",
-      phone || "",
-      region || "",
-      checkin || "",
-      duration || "",
-      totalPersons || 0,
-      personsPerRoom || "",
-      budget || "",
+      company,
+      contactPerson,
+      email,
+      phone,
+      region,
+      checkin,
+      duration,
+      totalPersons,
+      personsPerRoom,
+      budget,
       includedString,
-      notes || "",
+      notes,
       createdAt
     );
 
-    // Mail sturen (maar fout in mail mag de API niet laten falen)
-    try {
-      const to = process.env.NOTIFY_TO || process.env.SMTP_USER;
+    // Mail sturen (maar als dat faalt, blijft de aanvraag gewoon bewaard)
+    if (mailer && process.env.NOTIFY_TO) {
+      try {
+        await mailer.sendMail({
+          to: process.env.NOTIFY_TO,
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          subject: `Nieuwe huisvestingsaanvraag – ${company || "Onbekend bedrijf"}`,
+          text: `
+Er is een nieuwe huisvestingsaanvraag binnengekomen.
 
-      await transporter.sendMail({
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
-        to,
-        subject: `Nieuwe huisvestingsaanvraag – ${company || "onbekend bedrijf"}`,
-        text:
-          `Er is een nieuwe huisvestingsaanvraag binnengekomen.\n\n` +
-          `Bedrijf: ${company || "-"}\n` +
-          `Contactpersoon: ${contactPerson || "-"}\n` +
-          `E-mail: ${email || "-"}\n` +
-          `Telefoon: ${phone || "-"}\n` +
-          `Regio: ${region || "-"}\n` +
-          `Check-in: ${checkin || "-"}\n` +
-          `Duur: ${duration || "-"}\n` +
-          `Totaal personen: ${totalPersons || "-"}\n` +
-          `Personen per kamer: ${personsPerRoom || "-"}\n` +
-          `Budget: ${budget || "-"}\n` +
-          `Inbegrepen: ${includedString || "-"}\n\n` +
-          `Opmerkingen:\n${notes || "-"}\n`
-      });
+Bedrijf:        ${company}
+Contactpersoon: ${contactPerson}
+E-mail:        ${email}
+Telefoon:      ${phone}
 
-      console.log("Mail verzonden naar", to);
-    } catch (mailErr) {
-      console.error("Mail verzenden mislukt:", mailErr);
+Regio:         ${region}
+Check-in:      ${checkin}
+Duur:          ${duration}
+
+Aantal personen totaal:   ${totalPersons}
+Personen per kamer:       ${personsPerRoom}
+Budget p.p.p.w.:          ${budget}
+Inbegrepen:               ${includedString}
+
+Opmerkingen:
+${notes || "-"}
+
+Verzonden op: ${createdAt}
+          `.trim(),
+        });
+      } catch (mailErr) {
+        console.error("Mail verzenden mislukt:", mailErr);
+        // Geen res.status(500) hier, want de aanvraag staat al in de database
+      }
     }
 
     res.json({ success: true });
   } catch (err) {
-    console.error("DB fout:", err);
+    console.error("DB fout bij POST /api/request:", err);
     res.status(500).json({ success: false, error: "Database fout" });
   }
 });
 
-// Overzicht van alle aanvragen (admin)
+// 👉 Overzicht voor de adminpagina
 app.get("/api/requests", (req, res) => {
   try {
     const rows = db
       .prepare(
         `SELECT
-           id,
-           company,
-           contactPerson,
-           email,
-           phone,
-           region,
-           checkin,
-           duration,
-           totalPersons,
-           personsPerRoom,
-           budget,
-           included,
-           notes,
-           createdAt
-         FROM requests
-         ORDER BY datetime(createdAt) DESC`
+          id,
+          company,
+          contactPerson,
+          email,
+          phone,
+          region,
+          checkin,
+          duration,
+          totalPersons,
+          personsPerRoom,
+          budget,
+          included,
+          notes,
+          createdAt
+        FROM requests
+        ORDER BY datetime(createdAt) DESC`
       )
       .all();
 
@@ -161,7 +188,7 @@ app.get("/api/requests", (req, res) => {
   }
 });
 
-// Server starten
+// Server start
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log("Server draait op port " + PORT);
