@@ -1,5 +1,5 @@
 // server.js
-// Profoma CMS backend – aanvragen + adminoverzicht + mailmeldingen
+// Profoma CMS backend – aanvragen + adminoverzicht + agenda (jobs)
 
 const express = require("express");
 const cors = require("cors");
@@ -26,7 +26,7 @@ app.use(express.json());
 // ====== DATABASE ======
 const db = new Database(path.join(__dirname, "profoma.db"));
 
-// Tabel maken (of bij eerste run aanvullen met status-kolom)
+// --- Tabel: aanvragen (requests) ---
 db.prepare(`
   CREATE TABLE IF NOT EXISTS requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,8 +54,22 @@ try {
   // Kolom bestaat al → negeren
 }
 
-// ====== MAIL TRANSPORT ======
+// --- Tabel: jobs (agenda) ---
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT,
+    title TEXT,
+    location TEXT,
+    type TEXT,
+    client TEXT,
+    status TEXT,
+    notes TEXT,
+    createdAt TEXT
+  )
+`).run();
 
+// ====== MAIL TRANSPORT ======
 let mailTransporter = null;
 
 if (SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_FROM && NOTIFY_TO) {
@@ -73,7 +87,7 @@ if (SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_FROM && NOTIFY_TO) {
   console.log("⚠️ Mail niet geconfigureerd (env vars ontbreken)");
 }
 
-// Helper om mail te sturen – faal niet hard (alleen loggen)
+// Helper voor notificatie-mail bij nieuwe housing-aanvraag
 async function sendNotificationMail(request) {
   if (!mailTransporter) return;
 
@@ -146,6 +160,15 @@ Deze mail is automatisch verstuurd door profoma-cms.
   }
 }
 
+// ====== MIDDLEWARE ADMIN AUTH ======
+function checkAdmin(req, res, next) {
+  const token = req.headers["x-admin-token"];
+  if (!ADMIN_TOKEN || token !== ADMIN_TOKEN) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
+  next();
+}
+
 // ====== ROUTES ======
 
 // Test route
@@ -153,7 +176,7 @@ app.get("/", (req, res) => {
   res.send("Profoma CMS backend werkt! 🚀");
 });
 
-// POST: nieuwe aanvraag opslaan
+// --- Housing aanvraag opslaan ---
 app.post("/api/request", async (req, res) => {
   const {
     company,
@@ -222,16 +245,7 @@ app.post("/api/request", async (req, res) => {
   }
 });
 
-// Middleware voor simpele admin-auth
-function checkAdmin(req, res, next) {
-  const token = req.headers["x-admin-token"];
-  if (!ADMIN_TOKEN || token !== ADMIN_TOKEN) {
-    return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
-  next();
-}
-
-// GET: overzicht van alle aanvragen (admin)
+// --- Housing aanvragen overzicht ---
 app.get("/api/requests", checkAdmin, (req, res) => {
   try {
     const rows = db
@@ -264,7 +278,7 @@ app.get("/api/requests", checkAdmin, (req, res) => {
   }
 });
 
-// POST: status van een aanvraag wijzigen (admin)
+// --- Housing status updaten ---
 app.post("/api/update-status", checkAdmin, (req, res) => {
   const { id, status } = req.body;
 
@@ -279,6 +293,100 @@ app.post("/api/update-status", checkAdmin, (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("Status update fout:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// ====== AGENDA / JOBS ROUTES ======
+
+// Job aanmaken (opdracht toevoegen)
+app.post("/api/jobs", checkAdmin, (req, res) => {
+  const {
+    date,      // "2025-12-15"
+    title,     // "Schoonmaak appartementen"
+    location,  // "Utrecht"
+    type,      // "Schoonmaak", "TD", etc.
+    client,    // klantnaam/projectnaam
+    status,    // "Gepland", "Bevestigd", "Uitgevoerd", "Geannuleerd"
+    notes,     // extra info
+  } = req.body;
+
+  if (!date || !title) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Datum en titel zijn verplicht" });
+  }
+
+  const createdAt = new Date().toISOString();
+  const finalStatus = status || "Gepland";
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO jobs
+      (date, title, location, type, client, status, notes, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const info = stmt.run(
+      date,
+      title || "",
+      location || "",
+      type || "",
+      client || "",
+      finalStatus,
+      notes || "",
+      createdAt
+    );
+
+    res.json({ success: true, id: info.lastInsertRowid });
+  } catch (err) {
+    console.error("DB fout (jobs):", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// Jobs lijst (agenda)
+app.get("/api/jobs", checkAdmin, (req, res) => {
+  try {
+    const rows = db
+      .prepare(
+        `SELECT
+          id,
+          date,
+          title,
+          location,
+          type,
+          client,
+          status,
+          notes,
+          createdAt
+        FROM jobs
+        ORDER BY date ASC, datetime(createdAt) ASC`
+      )
+      .all();
+
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error("Fout bij ophalen van jobs:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// Job-status updaten
+app.post("/api/jobs/update-status", checkAdmin, (req, res) => {
+  const { id, status } = req.body;
+
+  if (!id || !status) {
+    return res
+      .status(400)
+      .json({ success: false, error: "id en status zijn verplicht" });
+  }
+
+  try {
+    db.prepare("UPDATE jobs SET status = ? WHERE id = ?").run(status, id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Job-status update fout:", err);
     res.status(500).json({ success: false, error: "Database fout" });
   }
 });
