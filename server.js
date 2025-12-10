@@ -1,18 +1,32 @@
+// server.js
+// Profoma CMS backend – aanvragen + adminoverzicht + mailmeldingen
+
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const Database = require("better-sqlite3");
 const nodemailer = require("nodemailer");
 
-// Express app
+// ====== ENV VARS ======
+const {
+  ADMIN_TOKEN,
+  SMTP_HOST,
+  SMTP_PORT,
+  SMTP_USER,
+  SMTP_PASS,
+  SMTP_FROM,
+  NOTIFY_TO,
+} = process.env;
+
+// ====== EXPRESS APP ======
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Database openen
+// ====== DATABASE ======
 const db = new Database(path.join(__dirname, "profoma.db"));
 
-// Tabel (LET OP: kolomnamen in camelCase)
+// Tabel maken (of bij eerste run aanvullen met status-kolom)
 db.prepare(`
   CREATE TABLE IF NOT EXISTS requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,76 +42,165 @@ db.prepare(`
     budget TEXT,
     included TEXT,
     notes TEXT,
-    createdAt TEXT
+    createdAt TEXT,
+    status TEXT DEFAULT 'Nieuw'
   )
 `).run();
 
-// Kleine helpers om rare waardes van Wix veilig te maken
-function safe(v) {
-  return v === undefined || v === null ? "" : String(v);
-}
-function safeNumber(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
+// Voor bestaande tabellen zonder status-kolom: proberen toe te voegen
+try {
+  db.prepare("ALTER TABLE requests ADD COLUMN status TEXT DEFAULT 'Nieuw'").run();
+} catch (e) {
+  // Kolom bestaat al → negeren
 }
 
-// Mailtransporter (Gmail)
-let mailer = null;
-if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-  mailer = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 465),
-    secure: Number(process.env.SMTP_PORT || 465) === 465,
+// ====== MAIL TRANSPORT ======
+
+let mailTransporter = null;
+
+if (SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_FROM && NOTIFY_TO) {
+  mailTransporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: Number(SMTP_PORT) || 465,
+    secure: (Number(SMTP_PORT) || 465) === 465, // 465 = SSL
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      user: SMTP_USER,
+      pass: SMTP_PASS,
     },
   });
+  console.log("Mail-transporter geconfigureerd");
+} else {
+  console.log("⚠️ Mail niet geconfigureerd (env vars ontbreken)");
 }
+
+// Helper om mail te sturen – faal niet hard (alleen loggen)
+async function sendNotificationMail(request) {
+  if (!mailTransporter) return;
+
+  const {
+    company,
+    contactPerson,
+    email,
+    phone,
+    region,
+    checkin,
+    duration,
+    totalPersons,
+    personsPerRoom,
+    budget,
+    included,
+    notes,
+  } = request;
+
+  const subject = `Nieuwe aanvraag personeels­huisvesting - ${company || "Onbekend bedrijf"}`;
+
+  const plainText = `
+Nieuwe aanvraag personeels­huisvesting
+
+Bedrijf:        ${company || "-"}
+Contactpersoon: ${contactPerson || "-"}
+E-mail:         ${email || "-"}
+Telefoon:       ${phone || "-"}
+Regio:          ${region || "-"}
+Check-in:       ${checkin || "-"}
+Duur:           ${duration || "-"}
+Aantal personen: ${totalPersons || "-"}
+Personen per kamer: ${personsPerRoom || "-"}
+Budget p.p.p.w.: ${budget || "-"}
+Inclusief:      ${included || "-"}
+Opmerkingen:    ${notes || "-"}
+
+Deze mail is automatisch verstuurd door profoma-cms.
+  `.trim();
+
+  const html = `
+    <h2>Nieuwe aanvraag personeels­huisvesting</h2>
+    <p><strong>Bedrijf:</strong> ${company || "-"}</p>
+    <p><strong>Contactpersoon:</strong> ${contactPerson || "-"}</p>
+    <p><strong>E-mail:</strong> ${email || "-"}</p>
+    <p><strong>Telefoon:</strong> ${phone || "-"}</p>
+    <p><strong>Regio:</strong> ${region || "-"}</p>
+    <p><strong>Check-in:</strong> ${checkin || "-"}</p>
+    <p><strong>Duur:</strong> ${duration || "-"}</p>
+    <p><strong>Aantal personen:</strong> ${totalPersons || "-"}</p>
+    <p><strong>Personen per kamer:</strong> ${personsPerRoom || "-"}</p>
+    <p><strong>Budget p.p.p.w.:</strong> ${budget || "-"}</p>
+    <p><strong>Inclusief:</strong> ${included || "-"}</p>
+    <p><strong>Opmerkingen / speciale wensen:</strong><br>${(notes || "-")
+      .replace(/\n/g, "<br>")}</p>
+    <hr>
+    <p>Deze mail is automatisch verstuurd door het Profoma CMS.</p>
+  `;
+
+  try {
+    await mailTransporter.sendMail({
+      from: SMTP_FROM,
+      to: NOTIFY_TO,
+      subject,
+      text: plainText,
+      html,
+    });
+    console.log("Mail verzonden naar", NOTIFY_TO);
+  } catch (err) {
+    console.error("Mail verzenden mislukt:", err);
+  }
+}
+
+// ====== ROUTES ======
 
 // Test route
 app.get("/", (req, res) => {
   res.send("Profoma CMS backend werkt! 🚀");
 });
 
-// 👉 Aanvraag opslaan
+// POST: nieuwe aanvraag opslaan
 app.post("/api/request", async (req, res) => {
+  const {
+    company,
+    contactPerson,
+    email,
+    phone,
+    region,
+    checkin,
+    duration,
+    totalPersons,
+    personsPerRoom,
+    budget,
+    included,
+    notes,
+  } = req.body;
+
+  const createdAt = new Date().toISOString();
+  const includedString = Array.isArray(included) ? included.join(", ") : "";
+  const status = "Nieuw";
+
   try {
-    // Zowel camelCase als snake_case accepteren (voor de zekerheid)
-    const company = safe(req.body.company);
-    const contactPerson = safe(
-      req.body.contactPerson || req.body.contact_person
-    );
-    const email = safe(req.body.email);
-    const phone = safe(req.body.phone);
-    const region = safe(req.body.region);
-    const checkin = safe(req.body.checkin);
-    const duration = safe(req.body.duration);
-    const totalPersons = safeNumber(
-      req.body.totalPersons || req.body.total_persons
-    );
-    const personsPerRoom = safe(
-      req.body.personsPerRoom || req.body.persons_per_room
-    );
-    const budget = safe(req.body.budget);
-    const notes = safe(req.body.notes);
-
-    const includedRaw =
-      req.body.included !== undefined ? req.body.included : [];
-    const includedString = Array.isArray(includedRaw)
-      ? includedRaw.join(", ")
-      : safe(includedRaw);
-
-    const createdAt = new Date().toISOString();
-
-    // ⚠️ LET OP: 13 kolommen, 13 waardes (geen 14 meer!)
     const stmt = db.prepare(`
       INSERT INTO requests
-      (company, contactPerson, email, phone, region, checkin, duration, totalPersons, personsPerRoom, budget, included, notes, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (company, contactPerson, email, phone, region, checkin, duration,
+       totalPersons, personsPerRoom, budget, included, notes, createdAt, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    stmt.run(
+    const info = stmt.run(
+      company || "",
+      contactPerson || "",
+      email || "",
+      phone || "",
+      region || "",
+      checkin || "",
+      duration || "",
+      totalPersons || 0,
+      personsPerRoom || "",
+      budget || "",
+      includedString,
+      notes || "",
+      createdAt,
+      status
+    );
+
+    // Mail sturen (niet blokkerend voor de response)
+    sendNotificationMail({
       company,
       contactPerson,
       email,
@@ -108,56 +211,28 @@ app.post("/api/request", async (req, res) => {
       totalPersons,
       personsPerRoom,
       budget,
-      includedString,
+      included: includedString,
       notes,
-      createdAt
-    );
+    });
 
-    // Mail sturen (maar als dat faalt, blijft de aanvraag gewoon bewaard)
-    if (mailer && process.env.NOTIFY_TO) {
-      try {
-        await mailer.sendMail({
-          to: process.env.NOTIFY_TO,
-          from: process.env.SMTP_FROM || process.env.SMTP_USER,
-          subject: `Nieuwe huisvestingsaanvraag – ${company || "Onbekend bedrijf"}`,
-          text: `
-Er is een nieuwe huisvestingsaanvraag binnengekomen.
-
-Bedrijf:        ${company}
-Contactpersoon: ${contactPerson}
-E-mail:        ${email}
-Telefoon:      ${phone}
-
-Regio:         ${region}
-Check-in:      ${checkin}
-Duur:          ${duration}
-
-Aantal personen totaal:   ${totalPersons}
-Personen per kamer:       ${personsPerRoom}
-Budget p.p.p.w.:          ${budget}
-Inbegrepen:               ${includedString}
-
-Opmerkingen:
-${notes || "-"}
-
-Verzonden op: ${createdAt}
-          `.trim(),
-        });
-      } catch (mailErr) {
-        console.error("Mail verzenden mislukt:", mailErr);
-        // Geen res.status(500) hier, want de aanvraag staat al in de database
-      }
-    }
-
-    res.json({ success: true });
+    res.json({ success: true, id: info.lastInsertRowid });
   } catch (err) {
-    console.error("DB fout bij POST /api/request:", err);
-    res.status(500).json({ success: false, error: "Database fout" });
+    console.error("DB fout:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// 👉 Overzicht voor de adminpagina
-app.get("/api/requests", (req, res) => {
+// Middleware voor simpele admin-auth
+function checkAdmin(req, res, next) {
+  const token = req.headers["x-admin-token"];
+  if (!ADMIN_TOKEN || token !== ADMIN_TOKEN) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
+  next();
+}
+
+// GET: overzicht van alle aanvragen (admin)
+app.get("/api/requests", checkAdmin, (req, res) => {
   try {
     const rows = db
       .prepare(
@@ -175,7 +250,8 @@ app.get("/api/requests", (req, res) => {
           budget,
           included,
           notes,
-          createdAt
+          createdAt,
+          status
         FROM requests
         ORDER BY datetime(createdAt) DESC`
       )
@@ -188,7 +264,26 @@ app.get("/api/requests", (req, res) => {
   }
 });
 
-// Server start
+// POST: status van een aanvraag wijzigen (admin)
+app.post("/api/update-status", checkAdmin, (req, res) => {
+  const { id, status } = req.body;
+
+  if (!id || !status) {
+    return res
+      .status(400)
+      .json({ success: false, error: "id en status zijn verplicht" });
+  }
+
+  try {
+    db.prepare("UPDATE requests SET status = ? WHERE id = ?").run(status, id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Status update fout:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// ====== SERVER STARTEN ======
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log("Server draait op port " + PORT);
