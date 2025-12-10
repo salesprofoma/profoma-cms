@@ -1,33 +1,21 @@
 // server.js
-// Profoma CMS backend – aanvragen + adminoverzicht + agenda (jobs) + personeel + medewerker-login
+// Profoma CMS – aanvragen + agenda/roosters
 
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const Database = require("better-sqlite3");
 const nodemailer = require("nodemailer");
-const crypto = require("crypto");
 
-// ====== ENV VARS ======
-const {
-  ADMIN_TOKEN,
-  SMTP_HOST,
-  SMTP_PORT,
-  SMTP_USER,
-  SMTP_PASS,
-  SMTP_FROM,
-  NOTIFY_TO,
-} = process.env;
-
-// ====== EXPRESS APP ======
+// ---------- Express app ----------
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ====== DATABASE ======
+// ---------- Database ----------
 const db = new Database(path.join(__dirname, "profoma.db"));
 
-// --- Tabel: aanvragen (requests) ---
+// Tabel: aanvragen personeelshuisvesting
 db.prepare(`
   CREATE TABLE IF NOT EXISTS requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,89 +36,96 @@ db.prepare(`
   )
 `).run();
 
-try {
-  db.prepare("ALTER TABLE requests ADD COLUMN status TEXT DEFAULT 'Nieuw'").run();
-} catch (e) {
-  // kolom bestaat al → negeren
-}
+// Tabel: medewerkers
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS employees (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    role TEXT,
+    loginCode TEXT,
+    active INTEGER DEFAULT 1
+  )
+`).run();
 
-// --- Tabel: jobs (agenda) ---
+// Tabel: opdrachten / jobs
 db.prepare(`
   CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT,
-    title TEXT,
-    location TEXT,
-    type TEXT,
-    client TEXT,
-    status TEXT,
+    date TEXT,          -- YYYY-MM-DD
+    startTime TEXT,     -- HH:mm (optioneel)
+    endTime TEXT,       -- HH:mm (optioneel)
+    type TEXT,          -- schoonmaak / TD / oplevering etc.
+    title TEXT,         -- korte titel
+    location TEXT,      -- plaats / adres
+    client TEXT,        -- klant / project
+    status TEXT DEFAULT 'Nieuw',  -- Nieuw / Gepland / Gestart / Afgerond
     notes TEXT,
     createdAt TEXT
   )
 `).run();
 
-// --- Tabel: staff (medewerkers) ---
+// Tabel: koppeling medewerker ↔ opdracht
 db.prepare(`
-  CREATE TABLE IF NOT EXISTS staff (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    phone TEXT,
-    email TEXT,
-    role TEXT,
-    active INTEGER DEFAULT 1,
-    loginCode TEXT
-  )
-`).run();
-
-// Voor bestaande staff-tabellen zonder loginCode-kolom
-try {
-  db.prepare("ALTER TABLE staff ADD COLUMN loginCode TEXT").run();
-} catch (e) {
-  // kolom bestaat al → negeren
-}
-
-// --- Tabel: job_staff (koppeling job ↔ medewerker) ---
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS job_staff (
+  CREATE TABLE IF NOT EXISTS job_assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     jobId INTEGER,
-    staffId INTEGER,
-    startTime TEXT,
-    endTime TEXT,
-    notes TEXT
+    employeeId INTEGER
   )
 `).run();
 
-// --- Tabel: staff_sessions (login sessies voor medewerkers) ---
+// Tabel: rapportage per opdracht
 db.prepare(`
-  CREATE TABLE IF NOT EXISTS staff_sessions (
+  CREATE TABLE IF NOT EXISTS job_reports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    staffId INTEGER,
-    token TEXT,
-    createdAt TEXT
+    jobId INTEGER,
+    employeeId INTEGER,
+    startedAt TEXT,
+    finishedAt TEXT,
+    beforePhotos TEXT,   -- JSON-string met URLs
+    afterPhotos TEXT,    -- JSON-string met URLs
+    comments TEXT
   )
 `).run();
 
-// ====== MAIL TRANSPORT ======
-let mailTransporter = null;
+// ---------- Environment & mail ----------
 
-if (SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_FROM && NOTIFY_TO) {
-  mailTransporter = nodemailer.createTransport({
+const {
+  ADMIN_TOKEN,
+  SMTP_HOST,
+  SMTP_PORT,
+  SMTP_USER,
+  SMTP_PASS,
+  SMTP_FROM,
+  NOTIFY_TO
+} = process.env;
+
+let mailTransport = null;
+
+if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+  mailTransport = nodemailer.createTransport({
     host: SMTP_HOST,
-    port: Number(SMTP_PORT) || 465,
-    secure: (Number(SMTP_PORT) || 465) === 465, // 465 = SSL
+    port: Number(SMTP_PORT || 587),
+    secure: Number(SMTP_PORT || 587) === 465, // 465 = SSL, anders STARTTLS
     auth: {
       user: SMTP_USER,
-      pass: SMTP_PASS,
-    },
+      pass: SMTP_PASS
+    }
   });
-  console.log("Mail-transporter geconfigureerd");
+
+  mailTransport.verify((err) => {
+    if (err) {
+      console.error("SMTP verificatie mislukt:", err);
+    } else {
+      console.log("SMTP klaar om mails te versturen");
+    }
+  });
 } else {
-  console.log("⚠️ Mail niet geconfigureerd (env vars ontbreken)");
+  console.log("SMTP niet geconfigureerd – aanvragen worden wel opgeslagen, maar niet gemaild.");
 }
 
-async function sendNotificationMail(request) {
-  if (!mailTransporter) return;
+// Hulpfunctie: mail versturen bij nieuwe aanvraag
+async function sendRequestMail(request) {
+  if (!mailTransport || !NOTIFY_TO || !SMTP_FROM) return;
 
   const {
     company,
@@ -144,112 +139,51 @@ async function sendNotificationMail(request) {
     personsPerRoom,
     budget,
     included,
-    notes,
+    notes
   } = request;
 
-  const subject = `Nieuwe aanvraag personeels­huisvesting - ${company || "Onbekend bedrijf"}`;
-
-  const plainText = `
-Nieuwe aanvraag personeels­huisvesting
-
-Bedrijf:        ${company || "-"}
-Contactpersoon: ${contactPerson || "-"}
-E-mail:         ${email || "-"}
-Telefoon:       ${phone || "-"}
-Regio:          ${region || "-"}
-Check-in:       ${checkin || "-"}
-Duur:           ${duration || "-"}
-Aantal personen: ${totalPersons || "-"}
-Personen per kamer: ${personsPerRoom || "-"}
-Budget p.p.p.w.: ${budget || "-"}
-Inclusief:      ${included || "-"}
-Opmerkingen:    ${notes || "-"}
-
-Deze mail is automatisch verstuurd door profoma-cms.
-  `.trim();
+  const subject = `Nieuwe huisvestingsaanvraag – ${company || "Onbekend bedrijf"}`;
+  const includedText = Array.isArray(included)
+    ? included.join(", ")
+    : (included || "");
 
   const html = `
-    <h2>Nieuwe aanvraag personeels­huisvesting</h2>
-    <p><strong>Bedrijf:</strong> ${company || "-"}</p>
-    <p><strong>Contactpersoon:</strong> ${contactPerson || "-"}</p>
-    <p><strong>E-mail:</strong> ${email || "-"}</p>
-    <p><strong>Telefoon:</strong> ${phone || "-"}</p>
-    <p><strong>Regio:</strong> ${region || "-"}</p>
-    <p><strong>Check-in:</strong> ${checkin || "-"}</p>
-    <p><strong>Duur:</strong> ${duration || "-"}</p>
-    <p><strong>Aantal personen:</strong> ${totalPersons || "-"}</p>
-    <p><strong>Personen per kamer:</strong> ${personsPerRoom || "-"}</p>
-    <p><strong>Budget p.p.p.w.:</strong> ${budget || "-"}</p>
-    <p><strong>Inclusief:</strong> ${included || "-"}</p>
-    <p><strong>Opmerkingen / speciale wensen:</strong><br>${(notes || "-")
-      .replace(/\n/g, "<br>")}</p>
-    <hr>
-    <p>Deze mail is automatisch verstuurd door het Profoma CMS.</p>
+    <h2>Nieuwe huisvestingsaanvraag</h2>
+    <p>Er is een nieuwe aanvraag via het formulier binnengekomen.</p>
+    <table border="0" cellpadding="4" cellspacing="0">
+      <tr><td><b>Bedrijf</b></td><td>${company || "-"}</td></tr>
+      <tr><td><b>Contactpersoon</b></td><td>${contactPerson || "-"}</td></tr>
+      <tr><td><b>E-mail</b></td><td>${email || "-"}</td></tr>
+      <tr><td><b>Telefoon</b></td><td>${phone || "-"}</td></tr>
+      <tr><td><b>Regio</b></td><td>${region || "-"}</td></tr>
+      <tr><td><b>Check-in</b></td><td>${checkin || "-"}</td></tr>
+      <tr><td><b>Duur</b></td><td>${duration || "-"}</td></tr>
+      <tr><td><b>Aantal personen</b></td><td>${totalPersons || "-"}</td></tr>
+      <tr><td><b>Personen per kamer</b></td><td>${personsPerRoom || "-"}</td></tr>
+      <tr><td><b>Budget p.p.p.w.</b></td><td>${budget || "-"}</td></tr>
+      <tr><td><b>Inbegrepen</b></td><td>${includedText || "-"}</td></tr>
+      <tr><td><b>Opmerkingen</b></td><td>${(notes || "").replace(/\n/g, "<br>")}</td></tr>
+    </table>
   `;
 
-  try {
-    await mailTransporter.sendMail({
-      from: SMTP_FROM,
-      to: NOTIFY_TO,
-      subject,
-      text: plainText,
-      html,
-    });
-    console.log("Mail verzonden naar", NOTIFY_TO);
-  } catch (err) {
-    console.error("Mail verzenden mislukt:", err);
-  }
+  await mailTransport.sendMail({
+    from: SMTP_FROM,
+    to: NOTIFY_TO,
+    subject,
+    html
+  });
 }
 
-// ====== HELPERS ======
+// ---------- Routes ----------
 
-function checkAdmin(req, res, next) {
-  const token = req.headers["x-admin-token"];
-  if (!ADMIN_TOKEN || token !== ADMIN_TOKEN) {
-    return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
-  next();
-}
-
-function generateLoginCode(name) {
-  const baseRaw = (name || "").trim().split(" ")[0].toUpperCase();
-  const base = baseRaw.replace(/[^A-Z0-9]/g, "") || "PF";
-  const suffix = Math.floor(1000 + Math.random() * 9000).toString();
-  return base.substring(0, 4) + "-" + suffix;
-}
-
-function createStaffSession(staffId) {
-  const token = crypto.randomBytes(24).toString("hex");
-  const createdAt = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO staff_sessions (staffId, token, createdAt) VALUES (?, ?, ?)`
-  ).run(staffId, token, createdAt);
-  return token;
-}
-
-function getStaffByToken(token) {
-  if (!token) return null;
-  const session = db
-    .prepare(`SELECT staffId FROM staff_sessions WHERE token = ?`)
-    .get(token);
-  if (!session) return null;
-  const staff = db
-    .prepare(
-      `SELECT id, name, phone, email, role, active, loginCode
-       FROM staff WHERE id = ? AND active = 1`
-    )
-    .get(session.staffId);
-  return staff || null;
-}
-
-// ====== ROUTES ======
-
-// Test route
+// Health check
 app.get("/", (req, res) => {
   res.send("Profoma CMS backend werkt! 🚀");
 });
 
-// --- Housing aanvraag opslaan ---
+// ====== AANVRAGEN – PERSONEELSHUISVESTING ======
+
+// POST: nieuwe aanvraag opslaan
 app.post("/api/request", async (req, res) => {
   const {
     company,
@@ -263,22 +197,21 @@ app.post("/api/request", async (req, res) => {
     personsPerRoom,
     budget,
     included,
-    notes,
-  } = req.body;
+    notes
+  } = req.body || {};
 
   const createdAt = new Date().toISOString();
-  const includedString = Array.isArray(included) ? included.join(", ") : "";
+  const includedString = Array.isArray(included) ? included.join(", ") : (included || "");
   const status = "Nieuw";
 
   try {
     const stmt = db.prepare(`
       INSERT INTO requests
-      (company, contactPerson, email, phone, region, checkin, duration,
-       totalPersons, personsPerRoom, budget, included, notes, createdAt, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (company, contactPerson, email, phone, region, checkin, duration, totalPersons, personsPerRoom, budget, included, notes, createdAt, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const info = stmt.run(
+    const result = stmt.run(
       company || "",
       contactPerson || "",
       email || "",
@@ -286,7 +219,7 @@ app.post("/api/request", async (req, res) => {
       region || "",
       checkin || "",
       duration || "",
-      totalPersons || 0,
+      Number(totalPersons || 0),
       personsPerRoom || "",
       budget || "",
       includedString,
@@ -295,54 +228,56 @@ app.post("/api/request", async (req, res) => {
       status
     );
 
-    // Mail sturen (niet blokkerend)
-    sendNotificationMail({
-      company,
-      contactPerson,
-      email,
-      phone,
-      region,
-      checkin,
-      duration,
-      totalPersons,
-      personsPerRoom,
-      budget,
-      included: includedString,
-      notes,
-    });
+    // Mail versturen (fouten vangen zodat opslaan altijd lukt)
+    try {
+      await sendRequestMail({
+        company,
+        contactPerson,
+        email,
+        phone,
+        region,
+        checkin,
+        duration,
+        totalPersons,
+        personsPerRoom,
+        budget,
+        included,
+        notes
+      });
+    } catch (mailErr) {
+      console.error("Mail verzenden mislukt:", mailErr);
+    }
 
-    res.json({ success: true, id: info.lastInsertRowid });
+    res.json({ success: true, id: result.lastInsertRowid });
   } catch (err) {
-    console.error("DB fout:", err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error("DB fout bij opslaan request:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
   }
 });
 
-// --- Housing aanvragen overzicht ---
-app.get("/api/requests", checkAdmin, (req, res) => {
+// GET: alle aanvragen (voor admin)
+app.get("/api/requests", (req, res) => {
   try {
-    const rows = db
-      .prepare(
-        `SELECT
-          id,
-          company,
-          contactPerson,
-          email,
-          phone,
-          region,
-          checkin,
-          duration,
-          totalPersons,
-          personsPerRoom,
-          budget,
-          included,
-          notes,
-          createdAt,
-          status
-        FROM requests
-        ORDER BY datetime(createdAt) DESC`
-      )
-      .all();
+    const rows = db.prepare(`
+      SELECT
+        id,
+        company,
+        contactPerson,
+        email,
+        phone,
+        region,
+        checkin,
+        duration,
+        totalPersons,
+        personsPerRoom,
+        budget,
+        included,
+        notes,
+        createdAt,
+        status
+      FROM requests
+      ORDER BY datetime(createdAt) DESC
+    `).all();
 
     res.json({ success: true, data: rows });
   } catch (err) {
@@ -351,292 +286,288 @@ app.get("/api/requests", checkAdmin, (req, res) => {
   }
 });
 
-// --- Housing status updaten ---
-app.post("/api/update-status", checkAdmin, (req, res) => {
-  const { id, status } = req.body;
+// PATCH: status van aanvraag aanpassen (Nieuw / In behandeling / Afgerond)
+app.patch("/api/requests/:id/status", (req, res) => {
+  const id = Number(req.params.id);
+  const { status } = req.body || {};
 
-  if (!id || !status) {
-    return res
-      .status(400)
-      .json({ success: false, error: "id en status zijn verplicht" });
+  if (!status) {
+    return res.status(400).json({ success: false, error: "Geen status opgegeven" });
   }
 
   try {
-    db.prepare("UPDATE requests SET status = ? WHERE id = ?").run(status, id);
+    db.prepare(`UPDATE requests SET status = ? WHERE id = ?`).run(status, id);
     res.json({ success: true });
   } catch (err) {
-    console.error("Status update fout:", err);
+    console.error("Fout bij updaten status:", err);
     res.status(500).json({ success: false, error: "Database fout" });
   }
 });
 
-// ====== AGENDA / JOBS ======
+// ====== MEDEWERKERS ======
 
-// Job aanmaken
-app.post("/api/jobs", checkAdmin, (req, res) => {
+// Admin: medewerker toevoegen (simpel). Dit kun je later via een klein formulier gebruiken.
+app.post("/api/employees", (req, res) => {
+  const { name, role, loginCode } = req.body || {};
+  if (!name || !loginCode) {
+    return res.status(400).json({ success: false, error: "Naam en loginCode zijn verplicht" });
+  }
+
+  try {
+    const result = db.prepare(`
+      INSERT INTO employees (name, role, loginCode, active)
+      VALUES (?, ?, ?, 1)
+    `).run(name, role || "", loginCode);
+
+    res.json({ success: true, id: result.lastInsertRowid });
+  } catch (err) {
+    console.error("Fout bij toevoegen medewerker:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// Admin: alle medewerkers
+app.get("/api/employees", (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT id, name, role, active
+      FROM employees
+      ORDER BY name
+    `).all();
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error("Fout bij ophalen medewerkers:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// Medewerker login (naam + code)
+app.post("/api/employee/login", (req, res) => {
+  const { name, code } = req.body || {};
+  if (!name || !code) {
+    return res.json({ success: false });
+  }
+
+  try {
+    const emp = db.prepare(`
+      SELECT id, name, role
+      FROM employees
+      WHERE name = ? AND loginCode = ? AND active = 1
+    `).get(name, code);
+
+    if (!emp) return res.json({ success: false });
+
+    // Simple token (voor nu alleen client-side gebruiken)
+    const token = `emp_${emp.id}_${Date.now()}`;
+
+    res.json({ success: true, employee: emp, token });
+  } catch (err) {
+    console.error("Fout bij login medewerker:", err);
+    res.status(500).json({ success: false, error: "Server fout" });
+  }
+});
+
+// ====== OPDRACHTEN / AGENDA ======
+
+// Admin: nieuwe opdracht aanmaken
+app.post("/api/jobs", (req, res) => {
   const {
     date,
+    startTime,
+    endTime,
+    type,
     title,
     location,
-    type,
     client,
     status,
     notes,
-  } = req.body;
+    employeeIds = []   // array met employeeId's voor rooster
+  } = req.body || {};
 
-  if (!date || !title) {
-    return res
-      .status(400)
-      .json({ success: false, error: "Datum en titel zijn verplicht" });
+  if (!date) {
+    return res.status(400).json({ success: false, error: "Datum is verplicht" });
   }
 
   const createdAt = new Date().toISOString();
-  const finalStatus = status || "Gepland";
 
   try {
-    const stmt = db.prepare(`
+    const insertJob = db.prepare(`
       INSERT INTO jobs
-      (date, title, location, type, client, status, notes, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (date, startTime, endTime, type, title, location, client, status, notes, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const info = stmt.run(
+    const result = insertJob.run(
       date,
+      startTime || "",
+      endTime || "",
+      type || "",
       title || "",
       location || "",
-      type || "",
       client || "",
-      finalStatus,
+      status || "Gepland",
       notes || "",
       createdAt
     );
 
-    res.json({ success: true, id: info.lastInsertRowid });
+    const jobId = result.lastInsertRowid;
+
+    const insertAssign = db.prepare(`
+      INSERT INTO job_assignments (jobId, employeeId) VALUES (?, ?)
+    `);
+    (employeeIds || []).forEach((empId) => {
+      if (empId) insertAssign.run(jobId, empId);
+    });
+
+    res.json({ success: true, id: jobId });
   } catch (err) {
-    console.error("DB fout (jobs):", err);
+    console.error("Fout bij aanmaken job:", err);
     res.status(500).json({ success: false, error: "Database fout" });
   }
 });
 
-// Jobs lijst met gekoppelde medewerkers (staffNames)
-app.get("/api/jobs", checkAdmin, (req, res) => {
+// Admin: alle opdrachten (voor agenda)
+app.get("/api/jobs", (req, res) => {
   try {
-    const rows = db
-      .prepare(
-        `SELECT
-          j.id,
-          j.date,
-          j.title,
-          j.location,
-          j.type,
-          j.client,
-          j.status,
-          j.notes,
-          j.createdAt,
-          IFNULL(GROUP_CONCAT(s.name, ', '), '') AS staffNames
-        FROM jobs j
-        LEFT JOIN job_staff js ON j.id = js.jobId
-        LEFT JOIN staff s ON s.id = js.staffId
-        GROUP BY j.id
-        ORDER BY j.date ASC, datetime(j.createdAt) ASC`
-      )
-      .all();
+    const rows = db.prepare(`
+      SELECT 
+        j.*,
+        GROUP_CONCAT(e.name, ', ') AS employees
+      FROM jobs j
+      LEFT JOIN job_assignments ja ON ja.jobId = j.id
+      LEFT JOIN employees e ON e.id = ja.employeeId
+      GROUP BY j.id
+      ORDER BY j.date, j.startTime
+    `).all();
 
     res.json({ success: true, data: rows });
   } catch (err) {
-    console.error("Fout bij ophalen van jobs:", err);
+    console.error("Fout bij ophalen jobs:", err);
     res.status(500).json({ success: false, error: "Database fout" });
   }
 });
 
-// Job-status updaten
-app.post("/api/jobs/update-status", checkAdmin, (req, res) => {
-  const { id, status } = req.body;
-
-  if (!id || !status) {
-    return res
-      .status(400)
-      .json({ success: false, error: "id en status zijn verplicht" });
+// Medewerker: eigen opdrachten
+app.get("/api/employee/jobs", (req, res) => {
+  const employeeId = Number(req.query.employeeId);
+  if (!employeeId) {
+    return res.status(400).json({ success: false, error: "employeeId ontbreekt" });
   }
 
   try {
-    db.prepare("UPDATE jobs SET status = ? WHERE id = ?").run(status, id);
+    const rows = db.prepare(`
+      SELECT j.*
+      FROM jobs j
+      JOIN job_assignments ja ON ja.jobId = j.id
+      WHERE ja.employeeId = ?
+      ORDER BY j.date, j.startTime
+    `).all(employeeId);
+
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error("Fout bij employee jobs:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// Medewerker: rapportage / start / afronden + before/after links
+app.post("/api/jobs/:id/report", (req, res) => {
+  const jobId = Number(req.params.id);
+  const {
+    employeeId,
+    action,          // 'start' of 'finish'
+    comments,
+    beforePhotos = [],
+    afterPhotos = []
+  } = req.body || {};
+
+  if (!employeeId || !action) {
+    return res.status(400).json({ success: false, error: "employeeId en action zijn verplicht" });
+  }
+
+  try {
+    // Bestaand report?
+    let report = db.prepare(`
+      SELECT * FROM job_reports
+      WHERE jobId = ? AND employeeId = ?
+    `).get(jobId, employeeId);
+
+    const now = new Date().toISOString();
+
+    if (!report) {
+      db.prepare(`
+        INSERT INTO job_reports
+        (jobId, employeeId, startedAt, finishedAt, beforePhotos, afterPhotos, comments)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        jobId,
+        employeeId,
+        action === "start" ? now : null,
+        action === "finish" ? now : null,
+        JSON.stringify(beforePhotos || []),
+        JSON.stringify(afterPhotos || []),
+        comments || ""
+      );
+    } else {
+      const existingBefore = report.beforePhotos ? JSON.parse(report.beforePhotos) : [];
+      const existingAfter = report.afterPhotos ? JSON.parse(report.afterPhotos) : [];
+
+      const mergedBefore = (beforePhotos && beforePhotos.length)
+        ? beforePhotos
+        : existingBefore;
+
+      const mergedAfter = (afterPhotos && afterPhotos.length)
+        ? afterPhotos
+        : existingAfter;
+
+      const newStartedAt = report.startedAt || (action === "start" ? now : null);
+      const newFinishedAt = report.finishedAt || (action === "finish" ? now : null);
+
+      db.prepare(`
+        UPDATE job_reports
+        SET startedAt = ?, finishedAt = ?, beforePhotos = ?, afterPhotos = ?, comments = ?
+        WHERE id = ?
+      `).run(
+        newStartedAt,
+        newFinishedAt,
+        JSON.stringify(mergedBefore),
+        JSON.stringify(mergedAfter),
+        comments || report.comments || "",
+        report.id
+      );
+    }
+
+    // Status van job bijwerken
+    const newStatus = action === "start" ? "Gestart" : "Afgerond";
+    db.prepare(`UPDATE jobs SET status = ? WHERE id = ?`).run(newStatus, jobId);
+
     res.json({ success: true });
   } catch (err) {
-    console.error("Job-status update fout:", err);
+    console.error("Fout bij job report:", err);
     res.status(500).json({ success: false, error: "Database fout" });
   }
 });
 
-// ====== STAFF (MEDEWERKERS) ======
-
-// Medewerker toevoegen (admin)
-app.post("/api/staff", checkAdmin, (req, res) => {
-  const { name, phone, email, role } = req.body;
-
-  if (!name) {
-    return res
-      .status(400)
-      .json({ success: false, error: "Naam is verplicht" });
-  }
-
-  const loginCode = generateLoginCode(name);
+// Admin: rapportage per opdracht ophalen
+app.get("/api/jobs/:id/report", (req, res) => {
+  const jobId = Number(req.params.id);
 
   try {
-    const stmt = db.prepare(`
-      INSERT INTO staff (name, phone, email, role, active, loginCode)
-      VALUES (?, ?, ?, ?, 1, ?)
-    `);
+    const reports = db.prepare(`
+      SELECT r.*, e.name AS employeeName
+      FROM job_reports r
+      LEFT JOIN employees e ON e.id = r.employeeId
+      WHERE r.jobId = ?
+    `).all(jobId);
 
-    const info = stmt.run(
-      name,
-      phone || "",
-      email || "",
-      role || "",
-      loginCode
-    );
-
-    res.json({ success: true, id: info.lastInsertRowid, loginCode });
+    res.json({ success: true, data: reports });
   } catch (err) {
-    console.error("DB fout (staff):", err);
+    console.error("Fout bij ophalen job report:", err);
     res.status(500).json({ success: false, error: "Database fout" });
   }
 });
 
-// Lijst medewerkers (admin)
-app.get("/api/staff", checkAdmin, (req, res) => {
-  try {
-    const rows = db
-      .prepare(
-        `SELECT id, name, phone, email, role, active, loginCode
-         FROM staff
-         WHERE active = 1
-         ORDER BY name ASC`
-      )
-      .all();
-
-    res.json({ success: true, data: rows });
-  } catch (err) {
-    console.error("Fout bij ophalen staff:", err);
-    res.status(500).json({ success: false, error: "Database fout" });
-  }
-});
-
-// Medewerker aan job koppelen (admin)
-app.post("/api/jobs/assign-staff", checkAdmin, (req, res) => {
-  const { jobId, staffId, startTime, endTime, notes } = req.body;
-
-  if (!jobId || !staffId) {
-    return res
-      .status(400)
-      .json({ success: false, error: "jobId en staffId zijn verplicht" });
-  }
-
-  try {
-    const stmt = db.prepare(`
-      INSERT INTO job_staff (jobId, staffId, startTime, endTime, notes)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-
-    const info = stmt.run(
-      jobId,
-      staffId,
-      startTime || "",
-      endTime || "",
-      notes || ""
-    );
-
-    res.json({ success: true, id: info.lastInsertRowid });
-  } catch (err) {
-    console.error("DB fout (job_staff):", err);
-    res.status(500).json({ success: false, error: "Database fout" });
-  }
-});
-
-// ====== STAFF LOGIN & EIGEN ROOSTER ======
-
-// Medewerker login (naam + code)
-app.post("/api/staff/login", (req, res) => {
-  const { name, code } = req.body;
-
-  if (!name || !code) {
-    return res
-      .status(400)
-      .json({ success: false, error: "Naam en code zijn verplicht" });
-  }
-
-  const staff = db
-    .prepare(
-      `SELECT id, name, phone, email, role, active, loginCode
-       FROM staff
-       WHERE active = 1
-         AND name = ? COLLATE NOCASE
-         AND loginCode = ?`
-    )
-    .get(name.trim(), code.trim());
-
-  if (!staff) {
-    return res
-      .status(401)
-      .json({ success: false, error: "Onjuiste combinatie van naam en code" });
-  }
-
-  const token = createStaffSession(staff.id);
-
-  res.json({
-    success: true,
-    token,
-    staff: {
-      id: staff.id,
-      name: staff.name,
-      role: staff.role,
-    },
-  });
-});
-
-// Rooster voor ingelogde medewerker
-app.get("/api/staff/my-jobs", (req, res) => {
-  const token = req.headers["x-staff-token"];
-  const staff = getStaffByToken(token);
-
-  if (!staff) {
-    return res
-      .status(401)
-      .json({ success: false, error: "Niet ingelogd of sessie verlopen" });
-  }
-
-  try {
-    const rows = db
-      .prepare(
-        `SELECT
-          j.id,
-          j.date,
-          j.title,
-          j.location,
-          j.type,
-          j.client,
-          j.status,
-          j.notes,
-          j.createdAt
-        FROM jobs j
-        INNER JOIN job_staff js ON j.id = js.jobId
-        WHERE js.staffId = ?
-        ORDER BY j.date ASC, datetime(j.createdAt) ASC`
-      )
-      .all(staff.id);
-
-    res.json({
-      success: true,
-      staff: { id: staff.id, name: staff.name, role: staff.role },
-      data: rows,
-    });
-  } catch (err) {
-    console.error("Fout bij ophalen rooster:", err);
-    res.status(500).json({ success: false, error: "Database fout" });
-  }
-});
-
-// ====== SERVER STARTEN ======
+// ---------- Server start ----------
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log("Server draait op port " + PORT);
