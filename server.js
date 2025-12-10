@@ -1,5 +1,5 @@
 // server.js
-// Profoma CMS backend – aanvragen + adminoverzicht + agenda (jobs)
+// Profoma CMS backend – aanvragen + adminoverzicht + agenda (jobs) + personeel
 
 const express = require("express");
 const cors = require("cors");
@@ -47,11 +47,10 @@ db.prepare(`
   )
 `).run();
 
-// Voor bestaande tabellen zonder status-kolom: proberen toe te voegen
 try {
   db.prepare("ALTER TABLE requests ADD COLUMN status TEXT DEFAULT 'Nieuw'").run();
 } catch (e) {
-  // Kolom bestaat al → negeren
+  // kolom bestaat al → negeren
 }
 
 // --- Tabel: jobs (agenda) ---
@@ -66,6 +65,30 @@ db.prepare(`
     status TEXT,
     notes TEXT,
     createdAt TEXT
+  )
+`).run();
+
+// --- Tabel: staff (medewerkers) ---
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS staff (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    phone TEXT,
+    email TEXT,
+    role TEXT,
+    active INTEGER DEFAULT 1
+  )
+`).run();
+
+// --- Tabel: job_staff (koppeling job ↔ medewerker) ---
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS job_staff (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jobId INTEGER,
+    staffId INTEGER,
+    startTime TEXT,
+    endTime TEXT,
+    notes TEXT
   )
 `).run();
 
@@ -87,7 +110,6 @@ if (SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_FROM && NOTIFY_TO) {
   console.log("⚠️ Mail niet geconfigureerd (env vars ontbreken)");
 }
 
-// Helper voor notificatie-mail bij nieuwe housing-aanvraag
 async function sendNotificationMail(request) {
   if (!mailTransporter) return;
 
@@ -222,7 +244,7 @@ app.post("/api/request", async (req, res) => {
       status
     );
 
-    // Mail sturen (niet blokkerend voor de response)
+    // Mail sturen (niet blokkerend)
     sendNotificationMail({
       company,
       contactPerson,
@@ -297,18 +319,18 @@ app.post("/api/update-status", checkAdmin, (req, res) => {
   }
 });
 
-// ====== AGENDA / JOBS ROUTES ======
+// ====== AGENDA / JOBS ======
 
-// Job aanmaken (opdracht toevoegen)
+// Job aanmaken
 app.post("/api/jobs", checkAdmin, (req, res) => {
   const {
-    date,      // "2025-12-15"
-    title,     // "Schoonmaak appartementen"
-    location,  // "Utrecht"
-    type,      // "Schoonmaak", "TD", etc.
-    client,    // klantnaam/projectnaam
-    status,    // "Gepland", "Bevestigd", "Uitgevoerd", "Geannuleerd"
-    notes,     // extra info
+    date,
+    title,
+    location,
+    type,
+    client,
+    status,
+    notes,
   } = req.body;
 
   if (!date || !title) {
@@ -345,23 +367,27 @@ app.post("/api/jobs", checkAdmin, (req, res) => {
   }
 });
 
-// Jobs lijst (agenda)
+// Jobs lijst met gekoppelde medewerkers (staffNames)
 app.get("/api/jobs", checkAdmin, (req, res) => {
   try {
     const rows = db
       .prepare(
         `SELECT
-          id,
-          date,
-          title,
-          location,
-          type,
-          client,
-          status,
-          notes,
-          createdAt
-        FROM jobs
-        ORDER BY date ASC, datetime(createdAt) ASC`
+          j.id,
+          j.date,
+          j.title,
+          j.location,
+          j.type,
+          j.client,
+          j.status,
+          j.notes,
+          j.createdAt,
+          IFNULL(GROUP_CONCAT(s.name, ', '), '') AS staffNames
+        FROM jobs j
+        LEFT JOIN job_staff js ON j.id = js.jobId
+        LEFT JOIN staff s ON s.id = js.staffId
+        GROUP BY j.id
+        ORDER BY j.date ASC, datetime(j.createdAt) ASC`
       )
       .all();
 
@@ -387,6 +413,89 @@ app.post("/api/jobs/update-status", checkAdmin, (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("Job-status update fout:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// ====== STAFF (MEDEWERKERS) ======
+
+// Medewerker toevoegen
+app.post("/api/staff", checkAdmin, (req, res) => {
+  const { name, phone, email, role } = req.body;
+
+  if (!name) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Naam is verplicht" });
+  }
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO staff (name, phone, email, role, active)
+      VALUES (?, ?, ?, ?, 1)
+    `);
+
+    const info = stmt.run(
+      name,
+      phone || "",
+      email || "",
+      role || ""
+    );
+
+    res.json({ success: true, id: info.lastInsertRowid });
+  } catch (err) {
+    console.error("DB fout (staff):", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// Lijst medewerkers (alleen active)
+app.get("/api/staff", checkAdmin, (req, res) => {
+  try {
+    const rows = db
+      .prepare(
+        `SELECT id, name, phone, email, role, active
+         FROM staff
+         WHERE active = 1
+         ORDER BY name ASC`
+      )
+      .all();
+
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error("Fout bij ophalen staff:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// Medewerker aan job koppelen
+app.post("/api/jobs/assign-staff", checkAdmin, (req, res) => {
+  const { jobId, staffId, startTime, endTime, notes } = req.body;
+
+  if (!jobId || !staffId) {
+    return res
+      .status(400)
+      .json({ success: false, error: "jobId en staffId zijn verplicht" });
+  }
+
+  try {
+    // simpele INSERT, geen dubbele checks nu
+    const stmt = db.prepare(`
+      INSERT INTO job_staff (jobId, staffId, startTime, endTime, notes)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    const info = stmt.run(
+      jobId,
+      staffId,
+      startTime || "",
+      endTime || "",
+      notes || ""
+    );
+
+    res.json({ success: true, id: info.lastInsertRowid });
+  } catch (err) {
+    console.error("DB fout (job_staff):", err);
     res.status(500).json({ success: false, error: "Database fout" });
   }
 });
