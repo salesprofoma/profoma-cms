@@ -206,10 +206,10 @@ app.post("/api/request", async (req, res) => {
 
   try {
     const stmt = db.prepare(`
-      INSERT INTO requests
-      (company, contactPerson, email, phone, region, checkin, duration, totalPersons, personsPerRoom, budget, included, notes, createdAt, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+  INSERT INTO requests
+  (company, contactPerson, email, phone, region, checkin, duration, totalPersons, personsPerRoom, budget, included, notes, createdAt, status)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
 
     const result = stmt.run(
       company || "",
