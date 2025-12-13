@@ -88,7 +88,6 @@ db.prepare(`
 `).run();
 
 // ---------- Environment & mail ----------
-
 const {
   ADMIN_TOKEN,
   SMTP_HOST,
@@ -123,6 +122,13 @@ if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
   console.log("SMTP niet geconfigureerd – aanvragen worden wel opgeslagen, maar niet gemaild.");
 }
 
+// Helper: included normaliseren (altijd array)
+function normalizeIncluded(included) {
+  if (Array.isArray(included)) return included.filter(Boolean);
+  if (typeof included === "string" && included.trim()) return [included.trim()];
+  return [];
+}
+
 // Hulpfunctie: mail versturen bij nieuwe aanvraag
 async function sendRequestMail(request) {
   if (!mailTransport || !NOTIFY_TO || !SMTP_FROM) return;
@@ -143,9 +149,22 @@ async function sendRequestMail(request) {
   } = request;
 
   const subject = `Nieuwe huisvestingsaanvraag – ${company || "Onbekend bedrijf"}`;
-  const includedText = Array.isArray(included)
-    ? included.join(", ")
-    : (included || "");
+
+  // included kan array zijn (frontend), of JSON-string (als je ooit uit DB mailt)
+  let includedArr = [];
+  if (Array.isArray(included)) {
+    includedArr = included;
+  } else if (typeof included === "string") {
+    // probeer JSON te parsen; als dat faalt, behandel als “komma-tekst”
+    try {
+      const parsed = JSON.parse(included);
+      includedArr = Array.isArray(parsed) ? parsed : [String(parsed)];
+    } catch (_) {
+      includedArr = included.split(",").map(s => s.trim()).filter(Boolean);
+    }
+  }
+
+  const includedText = includedArr.length ? includedArr.join(", ") : "";
 
   const html = `
     <h2>Nieuwe huisvestingsaanvraag</h2>
@@ -201,15 +220,18 @@ app.post("/api/request", async (req, res) => {
   } = req.body || {};
 
   const createdAt = new Date().toISOString();
-  const includedString = Array.isArray(included) ? included.join(", ") : (included || "");
   const status = "Nieuw";
+
+  // included: bewaar als JSON-string (future-proof)
+  const includedArr = normalizeIncluded(included);
+  const includedString = JSON.stringify(includedArr);
 
   try {
     const stmt = db.prepare(`
-  INSERT INTO requests
-  (company, contactPerson, email, phone, region, checkin, duration, totalPersons, personsPerRoom, budget, included, notes, createdAt, status)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
+      INSERT INTO requests
+      (company, contactPerson, email, phone, region, checkin, duration, totalPersons, personsPerRoom, budget, included, notes, createdAt, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
     const result = stmt.run(
       company || "",
@@ -241,7 +263,7 @@ app.post("/api/request", async (req, res) => {
         totalPersons,
         personsPerRoom,
         budget,
-        included,
+        included: includedArr, // mail in leesbare vorm
         notes
       });
     } catch (mailErr) {
@@ -306,7 +328,6 @@ app.patch("/api/requests/:id/status", (req, res) => {
 
 // ====== MEDEWERKERS ======
 
-// Admin: medewerker toevoegen (simpel). Dit kun je later via een klein formulier gebruiken.
 app.post("/api/employees", (req, res) => {
   const { name, role, loginCode } = req.body || {};
   if (!name || !loginCode) {
@@ -326,7 +347,6 @@ app.post("/api/employees", (req, res) => {
   }
 });
 
-// Admin: alle medewerkers
 app.get("/api/employees", (req, res) => {
   try {
     const rows = db.prepare(`
@@ -341,7 +361,6 @@ app.get("/api/employees", (req, res) => {
   }
 });
 
-// Medewerker login (naam + code)
 app.post("/api/employee/login", (req, res) => {
   const { name, code } = req.body || {};
   if (!name || !code) {
@@ -357,9 +376,7 @@ app.post("/api/employee/login", (req, res) => {
 
     if (!emp) return res.json({ success: false });
 
-    // Simple token (voor nu alleen client-side gebruiken)
     const token = `emp_${emp.id}_${Date.now()}`;
-
     res.json({ success: true, employee: emp, token });
   } catch (err) {
     console.error("Fout bij login medewerker:", err);
@@ -369,7 +386,6 @@ app.post("/api/employee/login", (req, res) => {
 
 // ====== OPDRACHTEN / AGENDA ======
 
-// Admin: nieuwe opdracht aanmaken
 app.post("/api/jobs", (req, res) => {
   const {
     date,
@@ -381,7 +397,7 @@ app.post("/api/jobs", (req, res) => {
     client,
     status,
     notes,
-    employeeIds = []   // array met employeeId's voor rooster
+    employeeIds = []
   } = req.body || {};
 
   if (!date) {
@@ -426,7 +442,6 @@ app.post("/api/jobs", (req, res) => {
   }
 });
 
-// Admin: alle opdrachten (voor agenda)
 app.get("/api/jobs", (req, res) => {
   try {
     const rows = db.prepare(`
@@ -447,7 +462,6 @@ app.get("/api/jobs", (req, res) => {
   }
 });
 
-// Medewerker: eigen opdrachten
 app.get("/api/employee/jobs", (req, res) => {
   const employeeId = Number(req.query.employeeId);
   if (!employeeId) {
@@ -470,12 +484,11 @@ app.get("/api/employee/jobs", (req, res) => {
   }
 });
 
-// Medewerker: rapportage / start / afronden + before/after links
 app.post("/api/jobs/:id/report", (req, res) => {
   const jobId = Number(req.params.id);
   const {
     employeeId,
-    action,          // 'start' of 'finish'
+    action,
     comments,
     beforePhotos = [],
     afterPhotos = []
@@ -486,7 +499,6 @@ app.post("/api/jobs/:id/report", (req, res) => {
   }
 
   try {
-    // Bestaand report?
     let report = db.prepare(`
       SELECT * FROM job_reports
       WHERE jobId = ? AND employeeId = ?
@@ -512,13 +524,8 @@ app.post("/api/jobs/:id/report", (req, res) => {
       const existingBefore = report.beforePhotos ? JSON.parse(report.beforePhotos) : [];
       const existingAfter = report.afterPhotos ? JSON.parse(report.afterPhotos) : [];
 
-      const mergedBefore = (beforePhotos && beforePhotos.length)
-        ? beforePhotos
-        : existingBefore;
-
-      const mergedAfter = (afterPhotos && afterPhotos.length)
-        ? afterPhotos
-        : existingAfter;
+      const mergedBefore = (beforePhotos && beforePhotos.length) ? beforePhotos : existingBefore;
+      const mergedAfter = (afterPhotos && afterPhotos.length) ? afterPhotos : existingAfter;
 
       const newStartedAt = report.startedAt || (action === "start" ? now : null);
       const newFinishedAt = report.finishedAt || (action === "finish" ? now : null);
@@ -537,7 +544,6 @@ app.post("/api/jobs/:id/report", (req, res) => {
       );
     }
 
-    // Status van job bijwerken
     const newStatus = action === "start" ? "Gestart" : "Afgerond";
     db.prepare(`UPDATE jobs SET status = ? WHERE id = ?`).run(newStatus, jobId);
 
@@ -548,7 +554,6 @@ app.post("/api/jobs/:id/report", (req, res) => {
   }
 });
 
-// Admin: rapportage per opdracht ophalen
 app.get("/api/jobs/:id/report", (req, res) => {
   const jobId = Number(req.params.id);
 
