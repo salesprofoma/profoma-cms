@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Profoma Admin – Aanvragen & Offertes</title>
+  <title>Profoma Admin – Aanvragen, Offertes & Contact</title>
   <style>
     @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
     *{box-sizing:border-box}
@@ -30,8 +30,6 @@
     .pill.done{border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.08);color:#166534}
     .pill.work{border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.10);color:#92400e}
     .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    .link{color:#0284c7;text-decoration:none}
-    .link:hover{text-decoration:underline}
     .detail{white-space:pre-wrap;background:#f6f7f9;border:1px solid #e5e7eb;border-radius:12px;padding:12px;font-size:12px;margin-top:10px;display:none}
     .detail.show{display:block}
     .note{font-size:12px;color:#64748b;margin-top:6px}
@@ -42,11 +40,12 @@
     <div class="topbar">
       <div>
         <h1>Profoma Admin</h1>
-        <div class="muted">Aanvragen (housing) + Offertes (zakelijk / housing / particulier)</div>
+        <div class="muted">Housing aanvragen + Offertes + Contact</div>
       </div>
       <div class="row">
         <a class="btn light" href="/admin/export/requests.csv" target="_blank">Export Requests (CSV)</a>
         <a class="btn light" href="/admin/export/offers.csv" target="_blank">Export Offers (CSV)</a>
+        <a class="btn light" href="/admin/export/contacts.csv" target="_blank">Export Contact (CSV)</a>
         <a class="btn secondary" href="/admin/logout">Uitloggen</a>
       </div>
     </div>
@@ -55,6 +54,7 @@
       <div class="tabs">
         <button class="tab active" data-tab="requests">Housing aanvragen</button>
         <button class="tab" data-tab="offers">Offertes</button>
+        <button class="tab" data-tab="contacts">Contact</button>
       </div>
 
       <div class="controls">
@@ -70,6 +70,7 @@
         <div class="note" id="meta"></div>
       </div>
 
+      <!-- REQUESTS -->
       <div id="panel-requests">
         <table>
           <thead>
@@ -88,6 +89,7 @@
         </table>
       </div>
 
+      <!-- OFFERS -->
       <div id="panel-offers" style="display:none;">
         <table>
           <thead>
@@ -107,6 +109,25 @@
 
         <div class="detail" id="offerDetail"></div>
       </div>
+
+      <!-- CONTACTS -->
+      <div id="panel-contacts" style="display:none;">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Datum</th>
+              <th>Naam / Bedrijf</th>
+              <th>Onderwerp</th>
+              <th>Email / Tel</th>
+              <th>Bericht</th>
+              <th>Status</th>
+              <th>Acties</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyContacts"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -115,8 +136,12 @@
   const tabs = document.querySelectorAll(".tab");
   const panelRequests = document.getElementById("panel-requests");
   const panelOffers = document.getElementById("panel-offers");
+  const panelContacts = document.getElementById("panel-contacts");
+
   const tbodyRequests = document.getElementById("tbodyRequests");
   const tbodyOffers = document.getElementById("tbodyOffers");
+  const tbodyContacts = document.getElementById("tbodyContacts");
+
   const offerDetail = document.getElementById("offerDetail");
 
   const searchEl = document.getElementById("search");
@@ -127,6 +152,7 @@
   let activeTab = "requests";
   let dataRequests = [];
   let dataOffers = [];
+  let dataContacts = [];
 
   function pill(status) {
     const s = (status || "Nieuw");
@@ -157,7 +183,10 @@
   }
 
   function renderMeta() {
-    const count = activeTab === "requests" ? dataRequests.length : dataOffers.length;
+    const count =
+      activeTab === "requests" ? dataRequests.length :
+      activeTab === "offers" ? dataOffers.length :
+      dataContacts.length;
     metaEl.textContent = `Totaal: ${count}`;
   }
 
@@ -199,6 +228,7 @@
               <select data-set-status-request="${id}">
                 <option value="Nieuw" ${r.status==="Nieuw"?"selected":""}>Nieuw</option>
                 <option value="In behandeling" ${r.status==="In behandeling"?"selected":""}>In behandeling</option>
+                <option value="Gepland" ${r.status==="Gepland"?"selected":""}>Gepland</option>
                 <option value="Afgerond" ${r.status==="Afgerond"?"selected":""}>Afgerond</option>
               </select>
             </div>
@@ -259,6 +289,7 @@
               <select data-set-status-offer="${id}">
                 <option value="Nieuw" ${r.status==="Nieuw"?"selected":""}>Nieuw</option>
                 <option value="In behandeling" ${r.status==="In behandeling"?"selected":""}>In behandeling</option>
+                <option value="Gepland" ${r.status==="Gepland"?"selected":""}>Gepland</option>
                 <option value="Afgerond" ${r.status==="Afgerond"?"selected":""}>Afgerond</option>
               </select>
             </div>
@@ -299,23 +330,84 @@
     renderMeta();
   }
 
+  function renderContacts() {
+    const q = searchEl.value.trim();
+    const sf = statusFilterEl.value;
+
+    const rows = dataContacts
+      .filter(r => matchesSearch(r, q))
+      .filter(r => matchesStatus(r, sf));
+
+    tbodyContacts.innerHTML = rows.map(r => {
+      const id = r.id;
+      const createdAt = fmtDate(r.createdAt);
+      const name = escapeHtml(r.name || "-");
+      const company = escapeHtml(r.company || "");
+      const topic = escapeHtml(r.topic || "-");
+      const email = escapeHtml(r.email || "");
+      const phone = escapeHtml(r.phone || "");
+      const message = escapeHtml(r.message || "");
+
+      return `
+        <tr>
+          <td>${id}</td>
+          <td><span class="muted">${createdAt}</span></td>
+          <td><b>${name}</b>${company ? "<br/>" + company : ""}</td>
+          <td>${topic}</td>
+          <td><span class="muted">${email}${phone ? " • " + phone : ""}</span></td>
+          <td style="max-width:420px;white-space:pre-wrap;">${message}</td>
+          <td>${pill(r.status)}</td>
+          <td>
+            <div class="actions">
+              <select data-set-status-contact="${id}">
+                <option value="Nieuw" ${r.status==="Nieuw"?"selected":""}>Nieuw</option>
+                <option value="In behandeling" ${r.status==="In behandeling"?"selected":""}>In behandeling</option>
+                <option value="Gepland" ${r.status==="Gepland"?"selected":""}>Gepland</option>
+                <option value="Afgerond" ${r.status==="Afgerond"?"selected":""}>Afgerond</option>
+              </select>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    document.querySelectorAll("[data-set-status-contact]").forEach(sel => {
+      sel.addEventListener("change", async () => {
+        const id = sel.getAttribute("data-set-status-contact");
+        const status = sel.value;
+        await fetch(`/api/contacts/${id}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type":"application/json" },
+          body: JSON.stringify({ status })
+        });
+        await loadAll();
+      });
+    });
+
+    renderMeta();
+  }
+
   async function loadAll() {
     offerDetail.classList.remove("show");
     offerDetail.textContent = "";
 
-    const [reqRes, offRes] = await Promise.all([
+    const [reqRes, offRes, conRes] = await Promise.all([
       fetch("/api/requests"),
-      fetch("/api/offers")
+      fetch("/api/offers"),
+      fetch("/api/contacts")
     ]);
 
     const reqOut = await reqRes.json().catch(() => ({}));
     const offOut = await offRes.json().catch(() => ({}));
+    const conOut = await conRes.json().catch(() => ({}));
 
     dataRequests = (reqOut && reqOut.success && Array.isArray(reqOut.data)) ? reqOut.data : [];
     dataOffers = (offOut && offOut.success && Array.isArray(offOut.data)) ? offOut.data : [];
+    dataContacts = (conOut && conOut.success && Array.isArray(conOut.data)) ? conOut.data : [];
 
     if (activeTab === "requests") renderRequests();
-    else renderOffers();
+    else if (activeTab === "offers") renderOffers();
+    else renderContacts();
   }
 
   tabs.forEach(t => {
@@ -326,15 +418,25 @@
 
       panelRequests.style.display = (activeTab === "requests") ? "block" : "none";
       panelOffers.style.display = (activeTab === "offers") ? "block" : "none";
+      panelContacts.style.display = (activeTab === "contacts") ? "block" : "none";
 
       if (activeTab === "requests") renderRequests();
-      else renderOffers();
+      else if (activeTab === "offers") renderOffers();
+      else renderContacts();
     });
   });
 
   refreshBtn.addEventListener("click", loadAll);
-  searchEl.addEventListener("input", () => activeTab === "requests" ? renderRequests() : renderOffers());
-  statusFilterEl.addEventListener("change", () => activeTab === "requests" ? renderRequests() : renderOffers());
+  searchEl.addEventListener("input", () => {
+    if (activeTab === "requests") renderRequests();
+    else if (activeTab === "offers") renderOffers();
+    else renderContacts();
+  });
+  statusFilterEl.addEventListener("change", () => {
+    if (activeTab === "requests") renderRequests();
+    else if (activeTab === "offers") renderOffers();
+    else renderContacts();
+  });
 
   loadAll();
 })();
