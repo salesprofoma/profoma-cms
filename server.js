@@ -12,7 +12,15 @@ const crypto = require("crypto");
 const app = express();
 
 // Alleen /api open voor CORS (Wix)
-app.use("/api", cors({ origin: "*", methods: ["GET", "POST", "PATCH"], allowedHeaders: ["Content-Type"] }));
+app.use(
+  "/api",
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: false }));
 
@@ -40,7 +48,7 @@ db.prepare(`
   )
 `).run();
 
-// Offertes (nieuw)
+// Offertes
 db.prepare(`
   CREATE TABLE IF NOT EXISTS offers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,7 +57,7 @@ db.prepare(`
     company TEXT,
     email TEXT,
     phone TEXT,
-    location TEXT,            -- locatie(s) of adres
+    location TEXT,
     startDate TEXT,
     details TEXT,             -- JSON-string met alle velden
     createdAt TEXT,
@@ -57,17 +65,17 @@ db.prepare(`
   )
 `).run();
 
-// Contact (nieuw)
+// Contactberichten  ✅ NIEUW
 db.prepare(`
   CREATE TABLE IF NOT EXISTS contacts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT,
     company TEXT,
-    email TEXT NOT NULL,
+    email TEXT,
     phone TEXT,
-    topic TEXT NOT NULL,
-    message TEXT NOT NULL,
-    consent INTEGER NOT NULL DEFAULT 0,
+    topic TEXT,
+    message TEXT,
+    consent INTEGER,
     source TEXT,
     createdAt TEXT,
     status TEXT DEFAULT 'Nieuw'
@@ -84,7 +92,7 @@ const {
   SMTP_PASS,
   SMTP_FROM,
   NOTIFY_TO,
-  PUBLIC_BASE_URL
+  PUBLIC_BASE_URL,
 } = process.env;
 
 const BASE_URL = PUBLIC_BASE_URL || "";
@@ -97,7 +105,7 @@ if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
     host: SMTP_HOST,
     port: Number(SMTP_PORT || 587),
     secure: Number(SMTP_PORT || 587) === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASS }
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
 
   mailTransport.verify((err) => {
@@ -108,10 +116,10 @@ if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
   console.log("SMTP niet geconfigureerd – opslag werkt, mail niet.");
 }
 
-async function sendMailSafe({ to, subject, html, replyTo }) {
+async function sendMailSafe({ to, subject, html }) {
   if (!mailTransport || !to || !SMTP_FROM) return;
   try {
-    await mailTransport.sendMail({ from: SMTP_FROM, to, subject, html, replyTo });
+    await mailTransport.sendMail({ from: SMTP_FROM, to, subject, html });
   } catch (e) {
     console.error("Mail verzenden mislukt:", e);
   }
@@ -121,7 +129,7 @@ async function sendMailSafe({ to, subject, html, replyTo }) {
 function parseCookies(req) {
   const header = req.headers.cookie || "";
   const out = {};
-  header.split(";").forEach(part => {
+  header.split(";").forEach((part) => {
     const [k, ...v] = part.trim().split("=");
     if (!k) return;
     out[k] = decodeURIComponent(v.join("=") || "");
@@ -134,10 +142,9 @@ function setCookie(res, name, value, { httpOnly = true, maxAgeSeconds = 60 * 60 
     `${name}=${encodeURIComponent(value)}`,
     `Path=/`,
     `Max-Age=${maxAgeSeconds}`,
-    `SameSite=Lax`
+    `SameSite=Lax`,
+    `Secure`, // Render draait achter https
   ];
-  // Render draait achter https → Secure is ok
-  parts.push("Secure");
   if (httpOnly) parts.push("HttpOnly");
   res.setHeader("Set-Cookie", parts.join("; "));
 }
@@ -161,15 +168,10 @@ function normalizeIncluded(included) {
   return [];
 }
 
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
-}
-
 // ---------------- Admin Auth (simpele login) ----------------
 const sessions = new Map(); // token -> { createdAt }
 
 function requireAdmin(req, res, next) {
-  // Als ADMIN_USER/PASS niet gezet zijn: blokkeren
   if (!ADMIN_USER || !ADMIN_PASS) {
     return res.status(500).send("ADMIN_USER/ADMIN_PASS ontbreken in Render Environment.");
   }
@@ -255,7 +257,9 @@ app.get("/admin", requireAdmin, (req, res) => {
 // ---------------- Health ----------------
 app.get("/", (req, res) => res.send("Profoma CMS backend werkt!"));
 
-// ---------------- API: REQUESTS (housing) ----------------
+// ============================
+//  API: REQUESTS (housing)
+// ============================
 async function sendRequestMail(request) {
   const subject = `Nieuwe huisvestingsaanvraag – ${request.company || "Onbekend bedrijf"}`;
   const includedText = Array.isArray(request.included) ? request.included.join(", ") : "";
@@ -276,9 +280,10 @@ async function sendRequestMail(request) {
       <tr><td><b>Inbegrepen</b></td><td>${escapeHtml(includedText || "-")}</td></tr>
       <tr><td><b>Opmerkingen</b></td><td>${escapeHtml(request.notes || "-")}</td></tr>
     </table>
+    ${BASE_URL ? `<p>Admin: ${escapeHtml(BASE_URL)}/admin</p>` : ""}
   `;
 
-  await sendMailSafe({ to: NOTIFY_TO, subject, html, replyTo: request.email || undefined });
+  await sendMailSafe({ to: NOTIFY_TO, subject, html });
 }
 
 app.post("/api/request", async (req, res) => {
@@ -294,12 +299,11 @@ app.post("/api/request", async (req, res) => {
     personsPerRoom,
     budget,
     included,
-    notes
+    notes,
   } = req.body || {};
 
   const createdAt = new Date().toISOString();
   const status = "Nieuw";
-
   const includedArr = normalizeIncluded(included);
   const includedString = JSON.stringify(includedArr);
 
@@ -327,10 +331,19 @@ app.post("/api/request", async (req, res) => {
       status
     );
 
-    // Meld-mail naar jullie
     await sendRequestMail({
-      company, contactPerson, email, phone, region, checkin, duration,
-      totalPersons, personsPerRoom, budget, included: includedArr, notes
+      company,
+      contactPerson,
+      email,
+      phone,
+      region,
+      checkin,
+      duration,
+      totalPersons,
+      personsPerRoom,
+      budget,
+      included: includedArr,
+      notes,
     });
 
     res.json({ success: true, id: result.lastInsertRowid });
@@ -343,12 +356,7 @@ app.post("/api/request", async (req, res) => {
 // Admin: requests ophalen
 app.get("/api/requests", requireAdmin, (req, res) => {
   try {
-    const rows = db.prepare(`
-      SELECT *
-      FROM requests
-      ORDER BY datetime(createdAt) DESC
-    `).all();
-
+    const rows = db.prepare(`SELECT * FROM requests ORDER BY datetime(createdAt) DESC`).all();
     res.json({ success: true, data: rows });
   } catch (err) {
     console.error("Fout bij ophalen aanvragen:", err);
@@ -356,7 +364,7 @@ app.get("/api/requests", requireAdmin, (req, res) => {
   }
 });
 
-// Admin: request status aanpassen
+// Admin: request status
 app.patch("/api/requests/:id/status", requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   const { status } = req.body || {};
@@ -371,9 +379,10 @@ app.patch("/api/requests/:id/status", requireAdmin, (req, res) => {
   }
 });
 
-// ---------------- API: OFFERS ----------------
+// ============================
+//  API: OFFERS
+// ============================
 function summarizeOffer(type, body) {
-  // Voor admin-lijst: handige velden
   if (type === "particulier") {
     return {
       name: body.name || "",
@@ -381,7 +390,7 @@ function summarizeOffer(type, body) {
       email: body.email || "",
       phone: body.phone || "",
       location: body.address || "",
-      startDate: body.preferredDay || ""
+      startDate: body.preferredDay || "",
     };
   }
   if (type === "housing") {
@@ -391,17 +400,16 @@ function summarizeOffer(type, body) {
       email: body.email || "",
       phone: body.phone || "",
       location: body.housingLocations || "",
-      startDate: body.startDate || ""
+      startDate: body.startDate || "",
     };
   }
-  // zakelijk
   return {
     name: body.contactPerson || "",
     company: body.company || "",
     email: body.email || "",
     phone: body.phone || "",
     location: body.locations || "",
-    startDate: body.startDate || ""
+    startDate: body.startDate || "",
   };
 }
 
@@ -419,10 +427,12 @@ async function sendOfferNotifyMail({ type, summary, details }) {
       <tr><td><b>Start</b></td><td>${escapeHtml(summary.startDate || "-")}</td></tr>
     </table>
     <h3>Details</h3>
-    <pre style="background:#f6f7f9;border:1px solid #e5e7eb;padding:12px;border-radius:10px;white-space:pre-wrap;">${escapeHtml(JSON.stringify(details, null, 2))}</pre>
+    <pre style="background:#f6f7f9;border:1px solid #e5e7eb;padding:12px;border-radius:10px;white-space:pre-wrap;">${escapeHtml(
+      JSON.stringify(details, null, 2)
+    )}</pre>
     ${BASE_URL ? `<p>Admin: ${escapeHtml(BASE_URL)}/admin</p>` : ""}
   `;
-  await sendMailSafe({ to: NOTIFY_TO, subject, html, replyTo: summary.email || undefined });
+  await sendMailSafe({ to: NOTIFY_TO, subject, html });
 }
 
 async function sendOfferConfirmationMail({ toEmail, type }) {
@@ -438,7 +448,6 @@ async function sendOfferConfirmationMail({ toEmail, type }) {
   await sendMailSafe({ to: toEmail, subject, html });
 }
 
-// Public endpoint (Wix) – offerte opslaan
 app.post("/api/offer", async (req, res) => {
   const { type } = req.body || {};
   const offerType = String(type || "").trim(); // zakelijk / housing / particulier
@@ -473,10 +482,7 @@ app.post("/api/offer", async (req, res) => {
       status
     );
 
-    // 1) mail naar jullie
     await sendOfferNotifyMail({ type: offerType, summary, details: req.body || {} });
-
-    // 2) bevestiging naar klant
     await sendOfferConfirmationMail({ toEmail: summary.email, type: offerType });
 
     res.json({ success: true, id: result.lastInsertRowid });
@@ -501,7 +507,7 @@ app.get("/api/offers", requireAdmin, (req, res) => {
   }
 });
 
-// Admin: offer details ophalen
+// Admin: offer details
 app.get("/api/offers/:id", requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   try {
@@ -529,9 +535,11 @@ app.patch("/api/offers/:id/status", requireAdmin, (req, res) => {
   }
 });
 
-// ---------------- API: CONTACT (nieuw) ----------------
+// ============================
+//  API: CONTACT  ✅ NIEUW
+// ============================
 async function sendContactNotifyMail(contact) {
-  const subject = `Nieuw contactbericht – ${contact.topic} (${contact.name})`;
+  const subject = `Nieuw contactbericht – ${contact.topic || "Geen onderwerp"}`;
   const html = `
     <h2>Nieuw contactbericht</h2>
     <table cellpadding="6" cellspacing="0" border="0">
@@ -540,53 +548,32 @@ async function sendContactNotifyMail(contact) {
       <tr><td><b>Email</b></td><td>${escapeHtml(contact.email || "-")}</td></tr>
       <tr><td><b>Telefoon</b></td><td>${escapeHtml(contact.phone || "-")}</td></tr>
       <tr><td><b>Onderwerp</b></td><td>${escapeHtml(contact.topic || "-")}</td></tr>
-      <tr><td><b>Bericht</b></td><td>${escapeHtml(contact.message || "-").replaceAll("\n","<br/>")}</td></tr>
+      <tr><td><b>Bericht</b></td><td>${escapeHtml(contact.message || "-")}</td></tr>
+      <tr><td><b>Bron</b></td><td>${escapeHtml(contact.source || "-")}</td></tr>
+      <tr><td><b>Tijd</b></td><td>${escapeHtml(contact.createdAt || "-")}</td></tr>
     </table>
     ${BASE_URL ? `<p>Admin: ${escapeHtml(BASE_URL)}/admin</p>` : ""}
   `;
-  await sendMailSafe({ to: NOTIFY_TO, subject, html, replyTo: contact.email || undefined });
+  await sendMailSafe({ to: NOTIFY_TO, subject, html });
 }
 
-async function sendContactConfirmationMail(contact) {
-  if (!contact.email) return;
-  const subject = `Bevestiging: we hebben je bericht ontvangen (${contact.topic}) – Profoma`;
+async function sendContactConfirmationMail(toEmail) {
+  if (!toEmail) return;
+  const subject = "We hebben je bericht ontvangen – Profoma";
   const html = `
-    <p>Hallo ${escapeHtml(contact.name || "")},</p>
-    <p>Bedankt voor je bericht. Wij hebben je aanvraag ontvangen en nemen zo snel mogelijk contact met je op.</p>
-    <p><b>Onderwerp:</b> ${escapeHtml(contact.topic || "")}</p>
-    <p style="margin-top:14px;"><b>Jouw bericht:</b><br/>${escapeHtml(contact.message || "").replaceAll("\n","<br/>")}</p>
-    <p style="margin-top:14px;">Met vriendelijke groet,<br/>Profoma</p>
+    <p>Bedankt voor je bericht. We hebben je aanvraag goed ontvangen.</p>
+    <p>We nemen meestal binnen <b>1–2 werkdagen</b> contact met je op.</p>
+    <p>Met vriendelijke groet,<br/>Profoma</p>
   `;
-  await sendMailSafe({ to: contact.email, subject, html });
+  await sendMailSafe({ to: toEmail, subject, html });
 }
 
+// Public endpoint (Wix) – contact opslaan
 app.post("/api/contact", async (req, res) => {
-  const {
-    name,
-    company,
-    email,
-    phone,
-    topic,
-    message,
-    consent,
-    source
-  } = req.body || {};
+  const { name, company, email, phone, topic, message, consent, source } = req.body || {};
 
-  // server-side validatie
-  if (!name || String(name).trim().length < 2) {
-    return res.status(400).json({ success: false, error: "Ongeldige naam" });
-  }
-  if (!email || !isValidEmail(email)) {
-    return res.status(400).json({ success: false, error: "Ongeldig e-mailadres" });
-  }
-  if (!topic || String(topic).trim().length < 2) {
-    return res.status(400).json({ success: false, error: "Ongeldig onderwerp" });
-  }
-  if (!message || String(message).trim().length < 10) {
-    return res.status(400).json({ success: false, error: "Bericht te kort" });
-  }
-  if (!consent) {
-    return res.status(400).json({ success: false, error: "Toestemming verplicht" });
+  if (!name || !email || !topic || !message) {
+    return res.status(400).json({ success: false, error: "Vul alle verplichte velden in." });
   }
 
   const createdAt = new Date().toISOString();
@@ -612,9 +599,8 @@ app.post("/api/contact", async (req, res) => {
       status
     );
 
-    // mails
-    await sendContactNotifyMail({ name, company, email, phone, topic, message });
-    await sendContactConfirmationMail({ name, email, topic, message });
+    await sendContactNotifyMail({ name, company, email, phone, topic, message, consent, source, createdAt });
+    await sendContactConfirmationMail(String(email || "").trim());
 
     res.json({ success: true, id: result.lastInsertRowid });
   } catch (err) {
@@ -626,12 +612,7 @@ app.post("/api/contact", async (req, res) => {
 // Admin: contacts ophalen
 app.get("/api/contacts", requireAdmin, (req, res) => {
   try {
-    const rows = db.prepare(`
-      SELECT *
-      FROM contacts
-      ORDER BY datetime(createdAt) DESC
-    `).all();
-
+    const rows = db.prepare(`SELECT * FROM contacts ORDER BY datetime(createdAt) DESC`).all();
     res.json({ success: true, data: rows });
   } catch (err) {
     console.error("Fout bij ophalen contacts:", err);
@@ -664,7 +645,7 @@ function toCSV(rows) {
     return s;
   };
   const lines = [headers.join(",")];
-  for (const r of rows) lines.push(headers.map(h => esc(r[h])).join(","));
+  for (const r of rows) lines.push(headers.map((h) => esc(r[h])).join(","));
   return lines.join("\n");
 }
 
@@ -682,6 +663,7 @@ app.get("/admin/export/offers.csv", requireAdmin, (req, res) => {
   res.send(toCSV(rows));
 });
 
+// optioneel export contacts
 app.get("/admin/export/contacts.csv", requireAdmin, (req, res) => {
   const rows = db.prepare(`SELECT * FROM contacts ORDER BY datetime(createdAt) DESC`).all();
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
