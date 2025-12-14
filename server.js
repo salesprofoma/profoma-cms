@@ -1,5 +1,5 @@
 // server.js
-// Profoma CMS – aanvragen + offertes + admin login + exports
+// Profoma CMS – aanvragen + offertes + contact + admin login + exports
 
 const express = require("express");
 const cors = require("cors");
@@ -14,6 +14,7 @@ const app = express();
 // Alleen /api open voor CORS (Wix)
 app.use("/api", cors({ origin: "*", methods: ["GET", "POST", "PATCH"], allowedHeaders: ["Content-Type"] }));
 app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false }));
 
 // ---------------- DB ----------------
 const db = new Database(path.join(__dirname, "profoma.db"));
@@ -56,6 +57,23 @@ db.prepare(`
   )
 `).run();
 
+// Contact (nieuw)
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    company TEXT,
+    email TEXT NOT NULL,
+    phone TEXT,
+    topic TEXT NOT NULL,
+    message TEXT NOT NULL,
+    consent INTEGER NOT NULL DEFAULT 0,
+    source TEXT,
+    createdAt TEXT,
+    status TEXT DEFAULT 'Nieuw'
+  )
+`).run();
+
 // ---------------- ENV ----------------
 const {
   ADMIN_USER,
@@ -90,10 +108,10 @@ if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
   console.log("SMTP niet geconfigureerd – opslag werkt, mail niet.");
 }
 
-async function sendMailSafe({ to, subject, html }) {
+async function sendMailSafe({ to, subject, html, replyTo }) {
   if (!mailTransport || !to || !SMTP_FROM) return;
   try {
-    await mailTransport.sendMail({ from: SMTP_FROM, to, subject, html });
+    await mailTransport.sendMail({ from: SMTP_FROM, to, subject, html, replyTo });
   } catch (e) {
     console.error("Mail verzenden mislukt:", e);
   }
@@ -143,6 +161,10 @@ function normalizeIncluded(included) {
   return [];
 }
 
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+}
+
 // ---------------- Admin Auth (simpele login) ----------------
 const sessions = new Map(); // token -> { createdAt }
 
@@ -182,7 +204,7 @@ app.get("/admin/login", (req, res) => {
 <body>
   <div class="wrap">
     <h1>Admin login</h1>
-    <p>Log in om aanvragen en offertes te beheren.</p>
+    <p>Log in om aanvragen, offertes en contact te beheren.</p>
 
     <form method="post" action="/admin/login">
       <label>Gebruikersnaam</label>
@@ -200,8 +222,6 @@ app.get("/admin/login", (req, res) => {
 </html>
   `);
 });
-
-app.use(express.urlencoded({ extended: false }));
 
 app.post("/admin/login", (req, res) => {
   const user = String(req.body.user || "");
@@ -258,7 +278,7 @@ async function sendRequestMail(request) {
     </table>
   `;
 
-  await sendMailSafe({ to: NOTIFY_TO, subject, html });
+  await sendMailSafe({ to: NOTIFY_TO, subject, html, replyTo: request.email || undefined });
 }
 
 app.post("/api/request", async (req, res) => {
@@ -402,7 +422,7 @@ async function sendOfferNotifyMail({ type, summary, details }) {
     <pre style="background:#f6f7f9;border:1px solid #e5e7eb;padding:12px;border-radius:10px;white-space:pre-wrap;">${escapeHtml(JSON.stringify(details, null, 2))}</pre>
     ${BASE_URL ? `<p>Admin: ${escapeHtml(BASE_URL)}/admin</p>` : ""}
   `;
-  await sendMailSafe({ to: NOTIFY_TO, subject, html });
+  await sendMailSafe({ to: NOTIFY_TO, subject, html, replyTo: summary.email || undefined });
 }
 
 async function sendOfferConfirmationMail({ toEmail, type }) {
@@ -509,6 +529,131 @@ app.patch("/api/offers/:id/status", requireAdmin, (req, res) => {
   }
 });
 
+// ---------------- API: CONTACT (nieuw) ----------------
+async function sendContactNotifyMail(contact) {
+  const subject = `Nieuw contactbericht – ${contact.topic} (${contact.name})`;
+  const html = `
+    <h2>Nieuw contactbericht</h2>
+    <table cellpadding="6" cellspacing="0" border="0">
+      <tr><td><b>Naam</b></td><td>${escapeHtml(contact.name || "-")}</td></tr>
+      <tr><td><b>Bedrijf</b></td><td>${escapeHtml(contact.company || "-")}</td></tr>
+      <tr><td><b>Email</b></td><td>${escapeHtml(contact.email || "-")}</td></tr>
+      <tr><td><b>Telefoon</b></td><td>${escapeHtml(contact.phone || "-")}</td></tr>
+      <tr><td><b>Onderwerp</b></td><td>${escapeHtml(contact.topic || "-")}</td></tr>
+      <tr><td><b>Bericht</b></td><td>${escapeHtml(contact.message || "-").replaceAll("\n","<br/>")}</td></tr>
+    </table>
+    ${BASE_URL ? `<p>Admin: ${escapeHtml(BASE_URL)}/admin</p>` : ""}
+  `;
+  await sendMailSafe({ to: NOTIFY_TO, subject, html, replyTo: contact.email || undefined });
+}
+
+async function sendContactConfirmationMail(contact) {
+  if (!contact.email) return;
+  const subject = `Bevestiging: we hebben je bericht ontvangen (${contact.topic}) – Profoma`;
+  const html = `
+    <p>Hallo ${escapeHtml(contact.name || "")},</p>
+    <p>Bedankt voor je bericht. Wij hebben je aanvraag ontvangen en nemen zo snel mogelijk contact met je op.</p>
+    <p><b>Onderwerp:</b> ${escapeHtml(contact.topic || "")}</p>
+    <p style="margin-top:14px;"><b>Jouw bericht:</b><br/>${escapeHtml(contact.message || "").replaceAll("\n","<br/>")}</p>
+    <p style="margin-top:14px;">Met vriendelijke groet,<br/>Profoma</p>
+  `;
+  await sendMailSafe({ to: contact.email, subject, html });
+}
+
+app.post("/api/contact", async (req, res) => {
+  const {
+    name,
+    company,
+    email,
+    phone,
+    topic,
+    message,
+    consent,
+    source
+  } = req.body || {};
+
+  // server-side validatie
+  if (!name || String(name).trim().length < 2) {
+    return res.status(400).json({ success: false, error: "Ongeldige naam" });
+  }
+  if (!email || !isValidEmail(email)) {
+    return res.status(400).json({ success: false, error: "Ongeldig e-mailadres" });
+  }
+  if (!topic || String(topic).trim().length < 2) {
+    return res.status(400).json({ success: false, error: "Ongeldig onderwerp" });
+  }
+  if (!message || String(message).trim().length < 10) {
+    return res.status(400).json({ success: false, error: "Bericht te kort" });
+  }
+  if (!consent) {
+    return res.status(400).json({ success: false, error: "Toestemming verplicht" });
+  }
+
+  const createdAt = new Date().toISOString();
+  const status = "Nieuw";
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO contacts
+      (name, company, email, phone, topic, message, consent, source, createdAt, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      String(name || "").trim(),
+      String(company || "").trim(),
+      String(email || "").trim(),
+      String(phone || "").trim(),
+      String(topic || "").trim(),
+      String(message || "").trim(),
+      consent ? 1 : 0,
+      String(source || "wix-contact").trim(),
+      createdAt,
+      status
+    );
+
+    // mails
+    await sendContactNotifyMail({ name, company, email, phone, topic, message });
+    await sendContactConfirmationMail({ name, email, topic, message });
+
+    res.json({ success: true, id: result.lastInsertRowid });
+  } catch (err) {
+    console.error("DB fout bij opslaan contact:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// Admin: contacts ophalen
+app.get("/api/contacts", requireAdmin, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT *
+      FROM contacts
+      ORDER BY datetime(createdAt) DESC
+    `).all();
+
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error("Fout bij ophalen contacts:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
+// Admin: contact status aanpassen
+app.patch("/api/contacts/:id/status", requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const { status } = req.body || {};
+  if (!status) return res.status(400).json({ success: false, error: "Geen status" });
+
+  try {
+    db.prepare(`UPDATE contacts SET status = ? WHERE id = ?`).run(status, id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Fout bij updaten contact status:", err);
+    res.status(500).json({ success: false, error: "Database fout" });
+  }
+});
+
 // ---------------- Exports (CSV) ----------------
 function toCSV(rows) {
   if (!rows.length) return "";
@@ -534,6 +679,13 @@ app.get("/admin/export/offers.csv", requireAdmin, (req, res) => {
   const rows = db.prepare(`SELECT * FROM offers ORDER BY datetime(createdAt) DESC`).all();
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", "attachment; filename=offers.csv");
+  res.send(toCSV(rows));
+});
+
+app.get("/admin/export/contacts.csv", requireAdmin, (req, res) => {
+  const rows = db.prepare(`SELECT * FROM contacts ORDER BY datetime(createdAt) DESC`).all();
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=contacts.csv");
   res.send(toCSV(rows));
 });
 
