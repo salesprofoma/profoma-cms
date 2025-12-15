@@ -1,0 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  password  String
+  role      UserRole  @default(ADMIN)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  employee  Employee?
+}
+
+model Company {
+  id        String          @id @default(cuid())
+  name      String
+  kvk       String?
+  vat       String?
+  email     String?
+  phone     String?
+  notes     String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  contacts  ContactPerson[]
+  locations Location[]
+  orders    Order[]
+}
+
+model ContactPerson {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  address1  String?
+  postcode  String?
+  city      String?
+  country   String?  @default("NL")
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orders    Order[]
+}
+
+model Employee {
+  id            String      @id @default(cuid())
+  userId        String      @unique
+  firstName     String
+  lastName      String
+  phone         String?
+  contractHours Float?
+  isFlex        Boolean     @default(false)
+  hourlyRate    Float?
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shifts        Shift[]
+  timeEntries   TimeEntry[]
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  companyId   String
+  locationId  String?
+  type        OrderType   @default(CLEANING)
+  title       String
+  description String?
+  status      OrderStatus @default(NEW)
+  startDate   DateTime?
+  endDate     DateTime?
+  budgetHours Float?
+  budgetCost  Float?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  location    Location?   @relation(fields: [locationId], references: [id])
+  shifts      Shift[]
+  workOrders  WorkOrder[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([type])
+}
+
+model Shift {
+  id           String      @id @default(cuid())
+  orderId      String
+  employeeId   String?
+  status       ShiftStatus @default(PLANNED)
+  startPlanned DateTime
+  endPlanned   DateTime
+  notes        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  employee     Employee?   @relation(fields: [employeeId], references: [id])
+  order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  timeEntries  TimeEntry[]
+  workOrders   WorkOrder[]
+
+  @@index([orderId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+model TimeEntry {
+  id         String     @id @default(cuid())
+  shiftId    String?
+  employeeId String
+  method     TimeMethod @default(MANUAL)
+  startAt    DateTime
+  endAt      DateTime?
+  breakMin   Int?
+  notes      String?
+  lat        Float?
+  lng        Float?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shift      Shift?     @relation(fields: [shiftId], references: [id])
+
+  @@index([employeeId])
+  @@index([shiftId])
+}
+
+model WorkOrder {
+  id           String    @id @default(cuid())
+  orderId      String
+  shiftId      String?
+  title        String
+  instructions String?
+  isSigned     Boolean   @default(false)
+  signedAt     DateTime?
+  signedBy     String?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shift        Shift?    @relation(fields: [shiftId], references: [id])
+
+  @@index([orderId])
+  @@index([shiftId])
+}
+
+model OfferRequest {
+  id        Int      @id @default(autoincrement())
+  type      String
+  payload   Json
+  status    String   @default("Nieuw")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([type])
+  @@index([status])
+}
+
+
+enum UserRole {
+  ADMIN
+  PLANNER
+  SUPERVISOR
+  EMPLOYEE
+  CLIENT
+}
+
+enum OrderType {
+  CLEANING
+  DEEP_CLEAN
+  POST_CONSTRUCTION
+  MOVE_OUT
+  MAINTENANCE
+  OTHER
+}
+
+enum OrderStatus {
+  NEW
+  PLANNED
+  IN_PROGRESS
+  DONE
+  INVOICED
+  CANCELLED
+}
+
+enum ShiftStatus {
+  PLANNED
+  STARTED
+  DONE
+  NO_SHOW
+  CANCELLED
+}
+
+enum TimeMethod {
+  MANUAL
+  FROM_TO
+  PLANNED_AS_ACTUAL
+  QR
+  NFC
+  GPS
+  PHOTO
+}

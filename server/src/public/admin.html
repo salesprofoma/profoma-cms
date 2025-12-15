@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Profoma – Admin (Offers)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg:#0b1220;
+      --card: rgba(255,255,255,.06);
+      --border: rgba(148,163,184,.25);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.65);
+      --accent:#00a3b4;
+      --accent2:#006b8f;
+      --danger:#ef4444;
+      --ok:#22c55e;
+      --shadow: 0 18px 50px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: Poppins, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(1200px 600px at 20% -10%, rgba(0,163,180,.25), transparent 60%),
+        radial-gradient(900px 500px at 90% 0%, rgba(0,107,143,.22), transparent 55%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .wrap{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 22px 16px 70px;
+    }
+
+    .topbar{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:14px;
+      margin-bottom: 14px;
+    }
+
+    .brand h1{
+      margin:0;
+      font-size: 22px;
+      letter-spacing: .2px;
+      font-weight: 800;
+      line-height:1.2;
+    }
+    .brand p{
+      margin:6px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .actions{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      box-shadow: 0 10px 24px rgba(0,0,0,.22);
+      min-height: 40px;
+    }
+
+    .pill label{
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .pill input, .pill select{
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      min-width: 160px;
+    }
+    .pill select option{ color:#0b1220; }
+
+    .btn{
+      border:none;
+      border-radius:999px;
+      padding: 10px 14px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 800;
+      cursor:pointer;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      box-shadow: 0 12px 24px rgba(0,163,180,.18);
+    }
+    .btn:disabled{ opacity:.6; cursor:not-allowed; box-shadow:none; }
+
+    .btn-ghost{
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border);
+      color: var(--text);
+      box-shadow:none;
+      font-weight: 700;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 14px;
+      margin-top: 12px;
+      align-items:start;
+    }
+
+    .card{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .cardHead{
+      padding: 14px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      border-bottom: 1px solid rgba(148,163,184,.18);
+      background: rgba(255,255,255,.04);
+    }
+    .cardHead h2{
+      margin:0;
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .meta{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,.22);
+      background: rgba(255,255,255,.06);
+    }
+    .dot{
+      width: 8px; height: 8px; border-radius: 999px;
+      background: var(--ok);
+      box-shadow: 0 0 0 4px rgba(34,197,94,.18);
+    }
+
+    table{
+      width:100%;
+      border-collapse: collapse;
+    }
+    th, td{
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(148,163,184,.14);
+      vertical-align: top;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    th{
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: .2px;
+      text-transform: uppercase;
+      background: rgba(255,255,255,.02);
+    }
+    tr:hover td{ background: rgba(255,255,255,.03); }
+
+    .rowBtn{
+      width:100%;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      justify-content:space-between;
+      text-align:left;
+      background: transparent;
+      border: none;
+      color: inherit;
+      cursor:pointer;
+      padding:0;
+      font-family: inherit;
+    }
+
+    .typeTag{
+      display:inline-flex;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(0,163,180,.18);
+      border: 1px solid rgba(0,163,180,.22);
+      font-weight: 800;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .type-zakelijk{ background: rgba(59,130,246,.18); border-color: rgba(59,130,246,.22); }
+    .type-housing{ background: rgba(0,163,180,.18); border-color: rgba(0,163,180,.22); }
+    .type-particulier{ background: rgba(168,85,247,.18); border-color: rgba(168,85,247,.22); }
+
+    .muted{ color: var(--muted); }
+    .nowrap{ white-space: nowrap; }
+
+    .empty{
+      padding: 18px 14px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    /* Detail pane */
+    .detail{
+      padding: 14px;
+    }
+    .detail h3{
+      margin:0 0 10px 0;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .kv{ margin-top: 10px; }
+    .kv__row{
+      display:grid;
+      grid-template-columns: 140px 1fr;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(148,163,184,.12);
+    }
+    .kv__k{ color: var(--muted); font-weight: 800; font-size: 12px; }
+    .kv__v{ color: var(--text); font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+
+    .box{
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(148,163,184,.18);
+      background: rgba(255,255,255,.04);
+      white-space: pre-wrap;
+    }
+
+    .statusRow{
+      margin-top: 12px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .statusRow select{
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(148,163,184,.25);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 9px 12px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 800;
+      outline:none;
+    }
+    .statusRow option{ color:#0b1220; }
+
+    .toast{
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(148,163,184,.18);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      font-size: 12px;
+      display:none;
+    }
+    .toast.show{ display:block; }
+    .toast.ok{ border-color: rgba(34,197,94,.30); box-shadow: 0 0 0 4px rgba(34,197,94,.10); }
+    .toast.err{ border-color: rgba(239,68,68,.30); box-shadow: 0 0 0 4px rgba(239,68,68,.10); }
+
+    .footerNote{
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.6;
+      padding: 0 4px;
+    }
+
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+      .pill input, .pill select{ min-width: 120px; }
+      .kv__row{ grid-template-columns: 1fr; gap: 4px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <h1>Profoma Admin</h1>
+        <p>Overzicht van offerte-aanvragen (zakelijk / housing / particulier)</p>
+      </div>
+
+      <div class="actions">
+        <div class="pill">
+          <label for="q">Zoeken</label>
+          <input id="q" placeholder="bedrijf / email / contact" />
+        </div>
+        <div class="pill">
+          <label for="type">Type</label>
+          <select id="type">
+            <option value="">Alles</option>
+            <option value="zakelijk">Zakelijk</option>
+            <option value="housing">Housing</option>
+            <option value="particulier">Particulier</option>
+          </select>
+        </div>
+        <div class="pill">
+          <label for="statusFilter">Status</label>
+          <select id="statusFilter">
+            <option value="">Alle statussen</option>
+            <option>Nieuw</option>
+            <option>In behandeling</option>
+            <option>Offerte verstuurd</option>
+            <option>Afgerond</option>
+            <option>Afgewezen</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost" id="refreshBtn">Vernieuwen</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT -->
+      <section class="card">
+        <div class="cardHead">
+          <h2>Aanvragen</h2>
+          <div class="meta">
+            <span class="badge"><span class="dot"></span><span id="count">0</span> items</span>
+            <span class="badge">Laatste update: <span id="updatedAt">—</span></span>
+          </div>
+        </div>
+
+        <div id="tableWrap">
+          <div class="empty">Laden…</div>
+        </div>
+      </section>
+
+      <!-- RIGHT -->
+      <aside class="card">
+        <div class="cardHead">
+          <h2>Details</h2>
+          <div class="meta">
+            <span class="badge">ID: <span id="selId">—</span></span>
+          </div>
+        </div>
+
+        <div class="detail" id="detailWrap">
+          <div class="empty">Klik links op een aanvraag om details te zien.</div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="footerNote">
+      Tip: Als je dit later wil beveiligen, kunnen we admin-auth hard afdwingen via backend (token header / basic auth).
+    </div>
+  </div>
+
+  <script>
+    // API endpoints (zelfde domain)
+    const API_OFFERS = "/api/offers";
+
+    const qEl = document.getElementById("q");
+    const typeEl = document.getElementById("type");
+    const statusFilterEl = document.getElementById("statusFilter");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const tableWrap = document.getElementById("tableWrap");
+    const detailWrap = document.getElementById("detailWrap");
+    const countEl = document.getElementById("count");
+    const updatedAtEl = document.getElementById("updatedAt");
+    const selIdEl = document.getElementById("selId");
+
+    let all = [];
+    let filtered = [];
+    let selected = null;
+
+    const ALLOWED_STATUS = ["Nieuw","In behandeling","Offerte verstuurd","Afgerond","Afgewezen"];
+
+    function fmtDate(iso){
+      if(!iso) return "—";
+      try{
+        const d = new Date(iso);
+        return d.toLocaleString("nl-NL", {
+          year:"numeric", month:"2-digit", day:"2-digit",
+          hour:"2-digit", minute:"2-digit"
+        });
+      }catch(e){ return iso; }
+    }
+
+    function escapeHtml(str){
+      return String(str ?? "")
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function typeClass(t){
+      if(t === "zakelijk") return "typeTag type-zakelijk";
+      if(t === "housing") return "typeTag type-housing";
+      if(t === "particulier") return "typeTag type-particulier";
+      return "typeTag";
+    }
+
+    function normalizeRow(row){
+      // we ondersteunen beide vormen:
+      // - nieuwe: { id, type, payload, createdAt, status }
+      // - oude/losse: payload "plat" (zoals jouw eerste admin)
+      const p = row.payload && typeof row.payload === "object" ? row.payload : {};
+      const out = { ...row };
+
+      // fallback naar payload velden
+      out.type = out.type || p.type || "";
+      out.status = out.status || row.status || "Nieuw";
+      out.createdAt = out.createdAt || p.createdAt || row.createdAt;
+
+      // zodat zoek/summary goed werkt:
+      out.company = p.company || row.company || "";
+      out.contactPerson = p.contactPerson || row.contactPerson || "";
+      out.name = p.name || row.name || "";
+      out.email = p.email || row.email || "";
+      out.phone = p.phone || row.phone || "";
+      out.locations = p.locations || row.locations || row.location || "";
+      out.housingLocations = p.housingLocations || row.housingLocations || "";
+      out.address = p.address || row.address || "";
+      out.notes = p.notes || row.notes || "";
+
+      out.payload = p; // zorg dat payload altijd object is
+      return out;
+    }
+
+    function pickSummary(o){
+      const p = o.payload || {};
+      if(o.type === "zakelijk"){
+        return (p.company || o.company || "—") + " · " + (p.locations || o.locations || "—");
+      }
+      if(o.type === "housing"){
+        return (p.company || o.company || "—") + " · " + (p.housingLocations || o.housingLocations || "—");
+      }
+      if(o.type === "particulier"){
+        return (p.name || o.name || "—") + " · " + (p.address || o.address || "—");
+      }
+      return (p.company || o.company || p.name || o.name || "—");
+    }
+
+    function match(o, q){
+      q = (q || "").toLowerCase().trim();
+      if(!q) return true;
+      const p = o.payload || {};
+      const hay = [
+        o.type,
+        o.status,
+        p.company, p.contactPerson, p.name,
+        p.email, p.phone,
+        p.locations, p.housingLocations, p.address,
+        p.notes
+      ].filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(q);
+    }
+
+    function applyFilters(){
+      const q = qEl.value || "";
+      const t = typeEl.value || "";
+      const s = statusFilterEl.value || "";
+
+      filtered = all
+        .filter(o => (t ? o.type === t : true))
+        .filter(o => (s ? String(o.status || "").trim() === s : true))
+        .filter(o => match(o, q));
+
+      countEl.textContent = String(filtered.length);
+      renderTable();
+
+      if(selected){
+        const still = filtered.find(x => String(x.id) === String(selected.id));
+        if(!still){
+          selected = null;
+          selIdEl.textContent = "—";
+          detailWrap.innerHTML = `<div class="empty">Selectie valt buiten filter. Klik links op een aanvraag.</div>`;
+        } else {
+          // update geselecteerde met nieuwste data (bv status)
+          selected = still;
+          renderDetail(selected);
+        }
+      }
+    }
+
+    function renderTable(){
+      if(!filtered.length){
+        tableWrap.innerHTML = `<div class="empty">Geen resultaten.</div>`;
+        return;
+      }
+
+      const rows = filtered.map(o => {
+        const summary = pickSummary(o);
+        const email = (o.payload?.email || o.email || "—");
+        const created = fmtDate(o.createdAt);
+        const active = selected && String(selected.id) === String(o.id) ? 'style="background: rgba(255,255,255,.05)"' : "";
+
+        return `
+          <tr ${active}>
+            <td class="nowrap">
+              <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+                <span class="${typeClass(o.type)}">${escapeHtml(o.type || "—")}</span>
+                <span class="muted" style="font-weight:800">${escapeHtml(o.status || "Nieuw")}</span>
+              </div>
+            </td>
+            <td>
+              <button class="rowBtn" data-id="${escapeHtml(o.id)}">
+                <div>
+                  <div style="font-weight:800">${escapeHtml(summary)}</div>
+                  <div class="muted" style="margin-top:4px">${escapeHtml(email)}</div>
+                </div>
+                <div class="muted nowrap" style="font-weight:700">${escapeHtml(created)}</div>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      tableWrap.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th style="width:170px">Type / Status</th>
+              <th>Samenvatting</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+
+      tableWrap.querySelectorAll("[data-id]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-id");
+          const o = filtered.find(x => String(x.id) === String(id));
+          if(o){
+            selected = o;
+            selIdEl.textContent = String(o.id ?? "—");
+            renderDetail(o);
+            renderTable();
+          }
+        });
+      });
+    }
+
+    function offerKeyValues(row){
+      const p = row.payload || {};
+      const type = String(row.type || p.type || "").toLowerCase();
+
+      if(type.includes("zak")){
+        return [
+          ["Type", "Zakelijk – schoonmaak"],
+          ["Status", row.status || "Nieuw"],
+          ["Datum", fmtDate(row.createdAt)],
+          ["Bedrijf", p.company || ""],
+          ["Contactpersoon", p.contactPerson || ""],
+          ["E-mail", p.email || ""],
+          ["Telefoon", p.phone || ""],
+          ["Locatie(s)", p.locations || ""],
+          ["Startdatum", p.startDate || ""],
+          ["Frequentie", p.frequency || ""],
+          ["Diensten", (p.services || []).join(", ")],
+          ["m²", p.m2 || ""],
+          ["Gebruikers/medewerkers", p.users || ""],
+          ["Toelichting", p.notes || ""],
+        ];
+      }
+
+      if(type.includes("hous")){
+        return [
+          ["Type", "Housing & personeelswoningen"],
+          ["Status", row.status || "Nieuw"],
+          ["Datum", fmtDate(row.createdAt)],
+          ["Bedrijf", p.company || ""],
+          ["Contactpersoon", p.contactPerson || ""],
+          ["E-mail", p.email || ""],
+          ["Telefoon", p.phone || ""],
+          ["Regio/locaties", p.housingLocations || ""],
+          ["Bedden/personen", p.beds || ""],
+          ["Startdatum", p.startDate || ""],
+          ["Looptijd", p.term || ""],
+          ["Type huisvesting", p.housingType || ""],
+          ["Diensten", (p.services || []).join(", ")],
+          ["Budget", p.budget || ""],
+          ["Toelichting", p.notes || ""],
+        ];
+      }
+
+      return [
+        ["Type", "Particulier – schoonmaak thuis"],
+        ["Status", row.status || "Nieuw"],
+        ["Datum", fmtDate(row.createdAt)],
+        ["Naam", p.name || ""],
+        ["E-mail", p.email || ""],
+        ["Telefoon", p.phone || ""],
+        ["Adres", p.address || ""],
+        ["Woningtype", p.homeType || ""],
+        ["m²", p.m2 || ""],
+        ["Slaapkamers", p.bedrooms || ""],
+        ["Badkamers", p.bathrooms || ""],
+        ["Schoonmaaksoort", p.cleaningType || ""],
+        ["Voorkeursdag", p.preferredDay || ""],
+        ["Dagdeel", p.preferredPart || ""],
+        ["Toelichting", p.notes || ""],
+      ];
+    }
+
+    function renderKV(kv){
+      const rows = kv
+        .filter(([k,v]) => String(v || "").trim() !== "")
+        .map(([k,v]) => `
+          <div class="kv__row">
+            <div class="kv__k">${escapeHtml(k)}</div>
+            <div class="kv__v">${escapeHtml(String(v))}</div>
+          </div>
+        `).join("");
+
+      return `<div class="kv">${rows || `<div class="empty">Geen details beschikbaar.</div>`}</div>`;
+    }
+
+    async function saveStatus(id, status){
+      const url = `/api/offers/${encodeURIComponent(id)}/status`;
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type":"application/json", "Accept":"application/json" },
+        body: JSON.stringify({ status })
+      });
+      const out = await res.json().catch(() => ({}));
+      if(!res.ok || !out.success){
+        const msg = out.error || `Status opslaan mislukt (${res.status})`;
+        throw new Error(msg);
+      }
+      return out.data;
+    }
+
+    function renderDetail(o){
+      const kv = offerKeyValues(o);
+      const currentStatus = String(o.status || "Nieuw").trim();
+
+      const statusOptions = ALLOWED_STATUS.map(s => {
+        const sel = s === currentStatus ? "selected" : "";
+        return `<option ${sel}>${escapeHtml(s)}</option>`;
+      }).join("");
+
+      detailWrap.innerHTML = `
+        <h3>${escapeHtml(o.type || "Aanvraag")}</h3>
+
+        ${renderKV(kv)}
+
+        <div class="statusRow">
+          <div class="muted" style="font-weight:800">Status wijzigen</div>
+          <select id="statusSelect">${statusOptions}</select>
+          <button class="btn" id="saveStatusBtn">Opslaan</button>
+        </div>
+
+        <div class="toast" id="toast"></div>
+
+        <div class="box"><strong>Ruwe payload (voor debug)</strong>\n\n${escapeHtml(JSON.stringify(o.payload || {}, null, 2))}</div>
+      `;
+
+      const toast = detailWrap.querySelector("#toast");
+      const statusSelect = detailWrap.querySelector("#statusSelect");
+      const saveBtn = detailWrap.querySelector("#saveStatusBtn");
+
+      function showToast(text, variant){
+        toast.textContent = text;
+        toast.classList.add("show");
+        toast.classList.remove("ok","err");
+        if(variant === "ok") toast.classList.add("ok");
+        if(variant === "err") toast.classList.add("err");
+      }
+
+      saveBtn.addEventListener("click", async () => {
+        const newStatus = String(statusSelect.value || "").trim();
+        if(!ALLOWED_STATUS.includes(newStatus)){
+          showToast("Ongeldige status gekozen.", "err");
+          return;
+        }
+
+        saveBtn.disabled = true;
+        showToast("Opslaan…", "");
+
+        try{
+          await saveStatus(o.id, newStatus);
+
+          // Update lokaal + refresh table
+          const idx = all.findIndex(x => String(x.id) === String(o.id));
+          if(idx >= 0) all[idx] = { ...all[idx], status: newStatus };
+          selected = { ...selected, status: newStatus };
+
+          showToast("Status opgeslagen.", "ok");
+          applyFilters(); // rendert tabel + detail opnieuw
+        }catch(e){
+          console.error(e);
+          showToast(e.message || "Opslaan mislukt.", "err");
+        }finally{
+          saveBtn.disabled = false;
+        }
+      });
+    }
+
+    async function loadOffers(){
+      refreshBtn.disabled = true;
+      tableWrap.innerHTML = `<div class="empty">Laden…</div>`;
+
+      try{
+        const res = await fetch(API_OFFERS, { headers: { "Accept":"application/json" } });
+        const out = await res.json().catch(() => ({}));
+
+        const data = Array.isArray(out) ? out : (out.data || []);
+        all = (data || []).map(normalizeRow).sort((a,b) => {
+          const da = new Date(a.createdAt || 0).getTime();
+          const db = new Date(b.createdAt || 0).getTime();
+          return db - da;
+        });
+
+        updatedAtEl.textContent = fmtDate(new Date().toISOString());
+        applyFilters();
+
+        if(!selected && filtered.length){
+          selected = filtered[0];
+          selIdEl.textContent = String(selected.id ?? "—");
+          renderDetail(selected);
+          renderTable();
+        }
+
+      }catch(e){
+        console.error(e);
+        tableWrap.innerHTML = `<div class="empty">Kan offers niet laden. Controleer of <code>/api/offers</code> bestaat.</div>`;
+      }finally{
+        refreshBtn.disabled = false;
+      }
+    }
+
+    qEl.addEventListener("input", () => applyFilters());
+    typeEl.addEventListener("change", () => applyFilters());
+    statusFilterEl.addEventListener("change", () => applyFilters());
+    refreshBtn.addEventListener("click", () => loadOffers());
+
+    loadOffers();
+  </script>
+</body>
+</html>
