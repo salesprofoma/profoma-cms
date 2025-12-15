@@ -3,24 +3,27 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Profoma – Admin (Offers)</title>
+  <title>Profoma Admin</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
   <style>
     :root{
-      --bg:#0b1220;
-      --card: rgba(255,255,255,.06);
-      --border: rgba(148,163,184,.25);
-      --text: rgba(255,255,255,.92);
-      --muted: rgba(255,255,255,.65);
+      --bg:#eef3f6;
+      --card:#ffffff;
+      --card2:#f7fafc;
+      --border: rgba(15, 23, 42, 0.10);
+      --text:#0f172a;
+      --muted: rgba(15, 23, 42, 0.62);
       --accent:#00a3b4;
       --accent2:#006b8f;
-      --danger:#ef4444;
-      --ok:#22c55e;
-      --shadow: 0 18px 50px rgba(0,0,0,.35);
+      --shadow: 0 16px 40px rgba(2, 6, 23, 0.10);
       --radius: 18px;
+      --ok:#16a34a;
+      --warn:#f59e0b;
+      --danger:#ef4444;
     }
 
     *{ box-sizing:border-box; }
@@ -28,14 +31,14 @@
       margin:0;
       font-family: Poppins, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       background:
-        radial-gradient(1200px 600px at 20% -10%, rgba(0,163,180,.25), transparent 60%),
-        radial-gradient(900px 500px at 90% 0%, rgba(0,107,143,.22), transparent 55%),
+        radial-gradient(1200px 600px at 20% -10%, rgba(0,163,180,.18), transparent 60%),
+        radial-gradient(900px 500px at 90% 0%, rgba(0,107,143,.14), transparent 55%),
         var(--bg);
       color: var(--text);
     }
 
     .wrap{
-      max-width: 1200px;
+      max-width: 1280px;
       margin: 0 auto;
       padding: 22px 16px 70px;
     }
@@ -47,7 +50,6 @@
       gap:14px;
       margin-bottom: 14px;
     }
-
     .brand h1{
       margin:0;
       font-size: 22px;
@@ -70,35 +72,6 @@
       justify-content:flex-end;
     }
 
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding: 10px 12px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,.06);
-      box-shadow: 0 10px 24px rgba(0,0,0,.22);
-      min-height: 40px;
-    }
-
-    .pill label{
-      font-size: 11px;
-      color: var(--muted);
-      font-weight: 600;
-    }
-    .pill input, .pill select{
-      background: transparent;
-      border: none;
-      outline: none;
-      color: var(--text);
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 600;
-      min-width: 160px;
-    }
-    .pill select option{ color:#0b1220; }
-
     .btn{
       border:none;
       border-radius:999px;
@@ -109,21 +82,56 @@
       cursor:pointer;
       color: #fff;
       background: linear-gradient(135deg, var(--accent), var(--accent2));
-      box-shadow: 0 12px 24px rgba(0,163,180,.18);
+      box-shadow: 0 12px 24px rgba(0,163,180,.14);
+      transition: transform .08s ease, box-shadow .2s ease, opacity .2s ease;
+      white-space: nowrap;
     }
+    .btn:active{ transform: translateY(1px); }
     .btn:disabled{ opacity:.6; cursor:not-allowed; box-shadow:none; }
-
     .btn-ghost{
-      background: rgba(255,255,255,.06);
+      background: rgba(255,255,255,.8);
       border: 1px solid var(--border);
       color: var(--text);
       box-shadow:none;
+      font-weight: 800;
+    }
+    .btn-dark{
+      background:#0b1220;
+      color:#fff;
+      box-shadow: 0 12px 24px rgba(2,6,23,.12);
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.85);
+      box-shadow: 0 10px 24px rgba(2,6,23,.06);
+      min-height: 40px;
+    }
+    .pill label{
+      font-size: 11px;
+      color: var(--muted);
       font-weight: 700;
     }
+    .pill input, .pill select{
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      min-width: 180px;
+    }
+    .pill select option{ color:#0b1220; }
 
     .grid{
       display:grid;
-      grid-template-columns: 1.2fr .8fr;
+      grid-template-columns: 1.25fr .75fr;
       gap: 14px;
       margin-top: 12px;
       align-items:start;
@@ -143,13 +151,14 @@
       align-items:center;
       justify-content:space-between;
       gap:12px;
-      border-bottom: 1px solid rgba(148,163,184,.18);
-      background: rgba(255,255,255,.04);
+      border-bottom: 1px solid rgba(15,23,42,.08);
+      background: rgba(255,255,255,.75);
     }
     .cardHead h2{
       margin:0;
       font-size: 14px;
-      font-weight: 800;
+      font-weight: 900;
+      letter-spacing:.2px;
     }
     .meta{
       display:flex;
@@ -159,7 +168,7 @@
       justify-content:flex-end;
       color: var(--muted);
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
     }
     .badge{
       display:inline-flex;
@@ -167,35 +176,57 @@
       gap:8px;
       padding: 6px 10px;
       border-radius: 999px;
-      border: 1px solid rgba(148,163,184,.22);
-      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(15,23,42,.10);
+      background: rgba(248,250,252,.9);
     }
     .dot{
       width: 8px; height: 8px; border-radius: 999px;
       background: var(--ok);
-      box-shadow: 0 0 0 4px rgba(34,197,94,.18);
+      box-shadow: 0 0 0 4px rgba(22,163,74,.14);
     }
 
-    table{
-      width:100%;
-      border-collapse: collapse;
+    .tabs{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(15,23,42,.08);
+      background: rgba(255,255,255,.65);
     }
+    .tab{
+      appearance:none;
+      border: 1px solid rgba(15,23,42,.10);
+      background: rgba(255,255,255,.9);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 900;
+      font-size: 12px;
+      cursor:pointer;
+    }
+    .tab.is-active{
+      border-color: rgba(0,163,180,.30);
+      box-shadow: 0 10px 18px rgba(0,163,180,.10);
+      color:#05313b;
+    }
+
+    table{ width:100%; border-collapse: collapse; }
     th, td{
       padding: 12px 14px;
-      border-bottom: 1px solid rgba(148,163,184,.14);
+      border-bottom: 1px solid rgba(15,23,42,.06);
       vertical-align: top;
       font-size: 12px;
       line-height: 1.35;
     }
     th{
       color: var(--muted);
-      font-weight: 700;
+      font-weight: 900;
       font-size: 11px;
-      letter-spacing: .2px;
+      letter-spacing: .25px;
       text-transform: uppercase;
-      background: rgba(255,255,255,.02);
+      background: rgba(248,250,252,.9);
     }
-    tr:hover td{ background: rgba(255,255,255,.03); }
+    tr:hover td{ background: rgba(2,6,23,.02); }
 
     .rowBtn{
       width:100%;
@@ -216,101 +247,157 @@
       display:inline-flex;
       padding: 4px 10px;
       border-radius: 999px;
-      background: rgba(0,163,180,.18);
-      border: 1px solid rgba(0,163,180,.22);
-      font-weight: 800;
+      background: rgba(0,163,180,.12);
+      border: 1px solid rgba(0,163,180,.18);
+      font-weight: 900;
       font-size: 11px;
       white-space: nowrap;
     }
-    .type-zakelijk{ background: rgba(59,130,246,.18); border-color: rgba(59,130,246,.22); }
-    .type-housing{ background: rgba(0,163,180,.18); border-color: rgba(0,163,180,.22); }
-    .type-particulier{ background: rgba(168,85,247,.18); border-color: rgba(168,85,247,.22); }
 
     .muted{ color: var(--muted); }
     .nowrap{ white-space: nowrap; }
-
     .empty{
       padding: 18px 14px;
       color: var(--muted);
       font-size: 12px;
     }
 
-    /* Detail pane */
-    .detail{
-      padding: 14px;
-    }
+    .detail{ padding: 14px; }
     .detail h3{
       margin:0 0 10px 0;
       font-size: 14px;
-      font-weight: 800;
+      font-weight: 900;
     }
-
-    .kv{ margin-top: 10px; }
-    .kv__row{
+    .kv{
       display:grid;
-      grid-template-columns: 140px 1fr;
-      gap: 10px;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(148,163,184,.12);
+      grid-template-columns: 160px 1fr;
+      gap: 8px 10px;
+      font-size: 12px;
+      line-height:1.35;
+      margin-top: 10px;
     }
-    .kv__k{ color: var(--muted); font-weight: 800; font-size: 12px; }
-    .kv__v{ color: var(--text); font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+    .k{ color: var(--muted); font-weight: 900; }
+    .v{ color: var(--text); word-break: break-word; white-space: pre-wrap; }
 
-    .box{
-      margin-top: 12px;
-      padding: 12px;
-      border-radius: 14px;
-      border: 1px solid rgba(148,163,184,.18);
-      background: rgba(255,255,255,.04);
-      white-space: pre-wrap;
+    .hr{
+      height:1px;
+      background: rgba(15,23,42,.08);
+      margin: 14px 0;
     }
 
-    .statusRow{
-      margin-top: 12px;
+    .inlineActions{
       display:flex;
       gap:10px;
-      align-items:center;
       flex-wrap:wrap;
+      align-items:center;
+      margin-top: 12px;
     }
-    .statusRow select{
-      background: rgba(255,255,255,.06);
-      border: 1px solid rgba(148,163,184,.25);
-      color: var(--text);
+
+    .select{
       border-radius: 999px;
       padding: 9px 12px;
+      border: 1px solid rgba(15,23,42,.12);
+      background: rgba(248,250,252,.95);
       font-family: inherit;
-      font-size: 12px;
       font-weight: 800;
+      font-size: 12px;
       outline:none;
     }
-    .statusRow option{ color:#0b1220; }
 
     .toast{
-      margin-top: 12px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid rgba(148,163,184,.18);
-      background: rgba(255,255,255,.04);
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(15,23,42,.12);
+      background: rgba(255,255,255,.92);
+      box-shadow: 0 20px 40px rgba(2,6,23,.12);
       color: var(--text);
       font-size: 12px;
+      font-weight: 800;
       display:none;
+      max-width: min(560px, calc(100vw - 32px));
+      z-index: 50;
     }
-    .toast.show{ display:block; }
-    .toast.ok{ border-color: rgba(34,197,94,.30); box-shadow: 0 0 0 4px rgba(34,197,94,.10); }
-    .toast.err{ border-color: rgba(239,68,68,.30); box-shadow: 0 0 0 4px rgba(239,68,68,.10); }
+    .toast.is-show{ display:block; }
 
-    .footerNote{
+    .modalBackdrop{
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.45);
+      backdrop-filter: blur(6px);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding: 18px;
+      z-index: 100;
+    }
+    .modalBackdrop.is-show{ display:flex; }
+    .modal{
+      width: 100%;
+      max-width: 520px;
+      border-radius: 22px;
+      background: rgba(255,255,255,.96);
+      border: 1px solid rgba(15,23,42,.14);
+      box-shadow: 0 26px 60px rgba(2,6,23,.22);
+      overflow:hidden;
+    }
+    .modalHead{
+      padding: 16px 18px;
+      border-bottom: 1px solid rgba(15,23,42,.08);
+      background: rgba(248,250,252,.85);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+    }
+    .modalHead h4{
+      margin:0;
+      font-size: 14px;
+      font-weight: 900;
+    }
+    .modalBody{
+      padding: 16px 18px 18px;
+    }
+    .field{ margin-top: 10px; }
+    .field label{
+      display:block;
+      font-size: 11px;
+      font-weight: 900;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .field input{
+      width: 100%;
+      border-radius: 14px;
+      padding: 12px 12px;
+      border: 1px solid rgba(15,23,42,.12);
+      background: rgba(248,250,252,.95);
+      outline:none;
+      font-family: inherit;
+      font-weight: 800;
+      font-size: 12px;
+    }
+    .modalFoot{
       margin-top: 14px;
+      display:flex;
+      gap:10px;
+      justify-content:flex-end;
+      align-items:center;
+    }
+    .help{
+      margin-top: 10px;
       color: var(--muted);
       font-size: 11px;
-      line-height: 1.6;
-      padding: 0 4px;
+      line-height: 1.5;
+      font-weight: 700;
     }
 
     @media (max-width: 980px){
       .grid{ grid-template-columns: 1fr; }
       .pill input, .pill select{ min-width: 120px; }
-      .kv__row{ grid-template-columns: 1fr; gap: 4px; }
+      .kv{ grid-template-columns: 140px 1fr; }
     }
   </style>
 </head>
@@ -320,80 +407,130 @@
     <div class="topbar">
       <div class="brand">
         <h1>Profoma Admin</h1>
-        <p>Overzicht van offerte-aanvragen (zakelijk / housing / particulier)</p>
+        <p>Housing aanvragen + Offertes + Contact</p>
       </div>
 
       <div class="actions">
+        <button class="btn btn-ghost" id="exportRequestsBtn">Export Requests (CSV)</button>
+        <button class="btn btn-ghost" id="exportOffersBtn">Export Offers (CSV)</button>
+        <button class="btn btn-ghost" id="exportContactBtn">Export Contact (CSV)</button>
+        <button class="btn btn-dark" id="logoutBtn">Uitloggen</button>
+      </div>
+    </div>
+
+    <section class="card">
+      <div class="tabs">
+        <button class="tab is-active" id="tabRequests" data-tab="requests">Housing aanvragen</button>
+        <button class="tab" id="tabOffers" data-tab="offers">Offertes</button>
+        <button class="tab" id="tabContact" data-tab="contact">Contact</button>
+
+        <div style="flex:1"></div>
+
         <div class="pill">
           <label for="q">Zoeken</label>
-          <input id="q" placeholder="bedrijf / email / contact" />
+          <input id="q" placeholder="naam, bedrijf, mail" />
         </div>
-        <div class="pill">
-          <label for="type">Type</label>
-          <select id="type">
-            <option value="">Alles</option>
-            <option value="zakelijk">Zakelijk</option>
-            <option value="housing">Housing</option>
-            <option value="particulier">Particulier</option>
-          </select>
-        </div>
+
         <div class="pill">
           <label for="statusFilter">Status</label>
           <select id="statusFilter">
             <option value="">Alle statussen</option>
-            <option>Nieuw</option>
-            <option>In behandeling</option>
-            <option>Offerte verstuurd</option>
-            <option>Afgerond</option>
-            <option>Afgewezen</option>
+            <option value="Nieuw">Nieuw</option>
+            <option value="In behandeling">In behandeling</option>
+            <option value="Offerte verstuurd">Offerte verstuurd</option>
+            <option value="Afgerond">Afgerond</option>
+            <option value="Afgewezen">Afgewezen</option>
           </select>
         </div>
-        <button class="btn btn-ghost" id="refreshBtn">Vernieuwen</button>
+
+        <button class="btn" id="refreshBtn">Vernieuwen</button>
       </div>
-    </div>
 
-    <div class="grid">
-      <!-- LEFT -->
-      <section class="card">
-        <div class="cardHead">
-          <h2>Aanvragen</h2>
-          <div class="meta">
-            <span class="badge"><span class="dot"></span><span id="count">0</span> items</span>
-            <span class="badge">Laatste update: <span id="updatedAt">—</span></span>
+      <div class="grid">
+        <section class="card" style="box-shadow:none;border:none;background:transparent;">
+          <div class="cardHead" style="border-radius: 16px;">
+            <h2 id="listTitle">Aanvragen</h2>
+            <div class="meta">
+              <span class="badge"><span class="dot"></span><span id="count">0</span> items</span>
+              <span class="badge">Laatste update: <span id="updatedAt">—</span></span>
+            </div>
           </div>
-        </div>
 
-        <div id="tableWrap">
-          <div class="empty">Laden…</div>
-        </div>
-      </section>
-
-      <!-- RIGHT -->
-      <aside class="card">
-        <div class="cardHead">
-          <h2>Details</h2>
-          <div class="meta">
-            <span class="badge">ID: <span id="selId">—</span></span>
+          <div id="tableWrap" class="card" style="margin-top:10px;border-radius:16px;">
+            <div class="empty">Laden…</div>
           </div>
+        </section>
+
+        <aside class="card" style="border-radius: 16px;">
+          <div class="cardHead">
+            <h2>Details</h2>
+            <div class="meta">
+              <span class="badge">ID: <span id="selId">—</span></span>
+            </div>
+          </div>
+
+          <div class="detail" id="detailWrap">
+            <div class="empty">Klik links op een item om details te zien.</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="modalBackdrop" id="loginBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Admin login">
+      <div class="modalHead">
+        <h4>Admin login</h4>
+        <button class="btn btn-ghost" id="loginCloseBtn" style="padding:8px 10px;">Sluiten</button>
+      </div>
+      <div class="modalBody">
+        <div class="field">
+          <label for="loginUser">Username</label>
+          <input id="loginUser" autocomplete="username" placeholder="admin" />
+        </div>
+        <div class="field">
+          <label for="loginPass">Password</label>
+          <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••" />
         </div>
 
-        <div class="detail" id="detailWrap">
-          <div class="empty">Klik links op een aanvraag om details te zien.</div>
+        <div class="modalFoot">
+          <button class="btn btn-ghost" id="loginDemoBtn" type="button">Vul admin in</button>
+          <button class="btn" id="loginBtn" type="button">Inloggen</button>
         </div>
-      </aside>
-    </div>
 
-    <div class="footerNote">
-      Tip: Als je dit later wil beveiligen, kunnen we admin-auth hard afdwingen via backend (token header / basic auth).
+        <div class="help">
+          Deze pagina gebruikt een token. Na inloggen wordt het token lokaal opgeslagen (in jouw browser).
+          Als je een 401 krijgt, ben je uitgelogd en moet je opnieuw inloggen.
+        </div>
+      </div>
     </div>
   </div>
 
   <script>
-    // API endpoints (zelfde domain)
-    const API_OFFERS = "/api/offers";
+    /**
+     * API endpoints:
+     * - Login:  POST /admin/login { username, password } -> { success, token }
+     * - Offers: GET  /api/offers
+     *           PATCH /api/offers/:id/status  { status }
+     *
+     * Let op:
+     * - /api/requests en /api/contact bestaan alleen als je ze in de backend hebt gemaakt.
+     *   Deze admin probeert ze, maar als ze 404 geven worden ze leeg gelaten.
+     */
+    const API = {
+      login: "/admin/login",
+      offers: "/api/offers",
+      requests: "/api/requests",
+      contact: "/api/contact",
+      patchOfferStatus: (id) => `/api/offers/${encodeURIComponent(id)}/status`,
+      patchRequestStatus: (id) => `/api/requests/${encodeURIComponent(id)}/status`,
+    };
+
+    const STATUS_OPTIONS = ["Nieuw","In behandeling","Offerte verstuurd","Afgerond","Afgewezen"];
 
     const qEl = document.getElementById("q");
-    const typeEl = document.getElementById("type");
     const statusFilterEl = document.getElementById("statusFilter");
     const refreshBtn = document.getElementById("refreshBtn");
     const tableWrap = document.getElementById("tableWrap");
@@ -401,21 +538,91 @@
     const countEl = document.getElementById("count");
     const updatedAtEl = document.getElementById("updatedAt");
     const selIdEl = document.getElementById("selId");
+    const listTitleEl = document.getElementById("listTitle");
 
+    const tabRequestsEl = document.getElementById("tabRequests");
+    const tabOffersEl = document.getElementById("tabOffers");
+    const tabContactEl = document.getElementById("tabContact");
+
+    const exportRequestsBtn = document.getElementById("exportRequestsBtn");
+    const exportOffersBtn = document.getElementById("exportOffersBtn");
+    const exportContactBtn = document.getElementById("exportContactBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    const toastEl = document.getElementById("toast");
+
+    const loginBackdrop = document.getElementById("loginBackdrop");
+    const loginBtn = document.getElementById("loginBtn");
+    const loginCloseBtn = document.getElementById("loginCloseBtn");
+    const loginDemoBtn = document.getElementById("loginDemoBtn");
+    const loginUserEl = document.getElementById("loginUser");
+    const loginPassEl = document.getElementById("loginPass");
+
+    const TOKEN_KEY = "pf_admin_token";
+
+    let activeTab = "requests";
+    let store = { requests: [], offers: [], contact: [] };
     let all = [];
     let filtered = [];
     let selected = null;
 
-    const ALLOWED_STATUS = ["Nieuw","In behandeling","Offerte verstuurd","Afgerond","Afgewezen"];
+    function setToast(msg, type = "info"){
+      toastEl.textContent = msg;
+      toastEl.classList.add("is-show");
+      if(type === "error") toastEl.style.borderColor = "rgba(239,68,68,.35)";
+      else if(type === "ok") toastEl.style.borderColor = "rgba(22,163,74,.30)";
+      else toastEl.style.borderColor = "rgba(15,23,42,.12)";
+
+      clearTimeout(setToast._t);
+      setToast._t = setTimeout(() => toastEl.classList.remove("is-show"), 3200);
+    }
+
+    function tokenGet(){ return localStorage.getItem(TOKEN_KEY) || ""; }
+    function tokenSet(t){ localStorage.setItem(TOKEN_KEY, t); }
+    function tokenClear(){ localStorage.removeItem(TOKEN_KEY); }
+
+    function showLogin(force = false){
+      loginBackdrop.classList.add("is-show");
+      loginBackdrop.setAttribute("aria-hidden", "false");
+      if(force){
+        loginUserEl.value = "";
+        loginPassEl.value = "";
+      }
+      setTimeout(() => loginUserEl.focus(), 80);
+    }
+    function hideLogin(){
+      loginBackdrop.classList.remove("is-show");
+      loginBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    async function apiFetchJson(url, opts = {}){
+      const t = tokenGet();
+      const headers = Object.assign({ "Accept":"application/json" }, opts.headers || {});
+      if(t) headers["Authorization"] = `Bearer ${t}`;
+
+      const res = await fetch(url, Object.assign({}, opts, { headers }));
+
+      if(res.status === 401){
+        tokenClear();
+        showLogin(true);
+        throw new Error("Unauthorized");
+      }
+
+      let json = {};
+      try { json = await res.json(); } catch(_) {}
+
+      if(!res.ok){
+        const errMsg = json?.error || json?.message || `HTTP ${res.status}`;
+        throw new Error(errMsg);
+      }
+      return json;
+    }
 
     function fmtDate(iso){
       if(!iso) return "—";
       try{
         const d = new Date(iso);
-        return d.toLocaleString("nl-NL", {
-          year:"numeric", month:"2-digit", day:"2-digit",
-          hour:"2-digit", minute:"2-digit"
-        });
+        return d.toLocaleString("nl-NL", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
       }catch(e){ return iso; }
     }
 
@@ -428,94 +635,90 @@
         .replaceAll("'","&#039;");
     }
 
-    function typeClass(t){
-      if(t === "zakelijk") return "typeTag type-zakelijk";
-      if(t === "housing") return "typeTag type-housing";
-      if(t === "particulier") return "typeTag type-particulier";
-      return "typeTag";
-    }
-
     function normalizeRow(row){
-      // we ondersteunen beide vormen:
-      // - nieuwe: { id, type, payload, createdAt, status }
-      // - oude/losse: payload "plat" (zoals jouw eerste admin)
-      const p = row.payload && typeof row.payload === "object" ? row.payload : {};
-      const out = { ...row };
+      const p = row?.payload || {};
+      const type = (row?.type || p?.type || "").toString().toLowerCase();
 
-      // fallback naar payload velden
-      out.type = out.type || p.type || "";
-      out.status = out.status || row.status || "Nieuw";
-      out.createdAt = out.createdAt || p.createdAt || row.createdAt;
+      const base = {
+        id: row?.id,
+        type: type || "onbekend",
+        createdAt: row?.createdAt,
+        status: row?.status || p?.status || "Nieuw",
+        email: p?.email || row?.email || "",
+        phone: p?.phone || row?.phone || "",
+        name: p?.name || "",
+        company: p?.company || "",
+        contactPerson: p?.contactPerson || p?.contact || "",
+        location: p?.location || "",
+        locations: p?.locations || "",
+        startDate: p?.startDate || "",
+        subject: p?.subject || "",
+        message: p?.message || p?.notes || "",
+        payload: p,
+        _raw: row
+      };
 
-      // zodat zoek/summary goed werkt:
-      out.company = p.company || row.company || "";
-      out.contactPerson = p.contactPerson || row.contactPerson || "";
-      out.name = p.name || row.name || "";
-      out.email = p.email || row.email || "";
-      out.phone = p.phone || row.phone || "";
-      out.locations = p.locations || row.locations || row.location || "";
-      out.housingLocations = p.housingLocations || row.housingLocations || "";
-      out.address = p.address || row.address || "";
-      out.notes = p.notes || row.notes || "";
-
-      out.payload = p; // zorg dat payload altijd object is
-      return out;
-    }
-
-    function pickSummary(o){
-      const p = o.payload || {};
-      if(o.type === "zakelijk"){
-        return (p.company || o.company || "—") + " · " + (p.locations || o.locations || "—");
-      }
-      if(o.type === "housing"){
-        return (p.company || o.company || "—") + " · " + (p.housingLocations || o.housingLocations || "—");
-      }
-      if(o.type === "particulier"){
-        return (p.name || o.name || "—") + " · " + (p.address || o.address || "—");
-      }
-      return (p.company || o.company || p.name || o.name || "—");
+      base.housingLocations = p?.housingLocations || p?.regions || "";
+      base.beds = p?.beds || p?.persons || "";
+      return base;
     }
 
     function match(o, q){
       q = (q || "").toLowerCase().trim();
       if(!q) return true;
-      const p = o.payload || {};
       const hay = [
-        o.type,
-        o.status,
-        p.company, p.contactPerson, p.name,
-        p.email, p.phone,
-        p.locations, p.housingLocations, p.address,
-        p.notes
+        o.type, o.status, o.company, o.contactPerson, o.name, o.email, o.phone,
+        o.location, o.locations, o.housingLocations, o.subject, o.message, o.startDate
       ].filter(Boolean).join(" ").toLowerCase();
       return hay.includes(q);
     }
 
+    function pickSummary(o){
+      if(activeTab === "contact"){
+        return (o.name || o.company || "—") + (o.subject ? ` · ${o.subject}` : "");
+      }
+      if(o.type.includes("zak")){
+        return (o.company || "—") + " · " + (o.locations || o.location || "—");
+      }
+      if(o.type.includes("hous")){
+        return (o.company || "—") + " · " + (o.housingLocations || o.locations || "—");
+      }
+      if(o.type.includes("part")){
+        return (o.name || "—") + " · " + (o.location || o.locations || "—");
+      }
+      return (o.company || o.name || "—");
+    }
+
+    function setActiveTab(tab){
+      activeTab = tab;
+      [tabRequestsEl, tabOffersEl, tabContactEl].forEach(x => x.classList.remove("is-active"));
+      if(tab === "requests") tabRequestsEl.classList.add("is-active");
+      if(tab === "offers") tabOffersEl.classList.add("is-active");
+      if(tab === "contact") tabContactEl.classList.add("is-active");
+
+      listTitleEl.textContent =
+        tab === "requests" ? "Housing aanvragen" :
+        tab === "offers" ? "Offertes" : "Contact";
+
+      selected = null;
+      selIdEl.textContent = "—";
+      detailWrap.innerHTML = `<div class="empty">Klik links op een item om details te zien.</div>`;
+
+      all = store[tab].slice();
+      applyFilters();
+      if(filtered.length) selectRow(filtered[0]);
+    }
+
     function applyFilters(){
       const q = qEl.value || "";
-      const t = typeEl.value || "";
-      const s = statusFilterEl.value || "";
+      const sf = statusFilterEl.value || "";
 
       filtered = all
-        .filter(o => (t ? o.type === t : true))
-        .filter(o => (s ? String(o.status || "").trim() === s : true))
-        .filter(o => match(o, q));
+        .filter(o => match(o, q))
+        .filter(o => sf ? (String(o.status || "").trim() === sf) : true);
 
       countEl.textContent = String(filtered.length);
       renderTable();
-
-      if(selected){
-        const still = filtered.find(x => String(x.id) === String(selected.id));
-        if(!still){
-          selected = null;
-          selIdEl.textContent = "—";
-          detailWrap.innerHTML = `<div class="empty">Selectie valt buiten filter. Klik links op een aanvraag.</div>`;
-        } else {
-          // update geselecteerde met nieuwste data (bv status)
-          selected = still;
-          renderDetail(selected);
-        }
-      }
     }
 
     function renderTable(){
@@ -524,28 +727,75 @@
         return;
       }
 
+      const head =
+        activeTab === "contact"
+          ? `<tr>
+              <th style="width:140px">Datum</th>
+              <th>Naam / onderwerp</th>
+              <th style="width:220px">Email</th>
+              <th style="width:120px">Acties</th>
+            </tr>`
+          : `<tr>
+              <th style="width:70px">ID</th>
+              <th style="width:140px">Type</th>
+              <th>Naam / bedrijf</th>
+              <th style="width:150px">Locatie</th>
+              <th style="width:120px">Start</th>
+              <th style="width:220px">Email / tel</th>
+              <th style="width:140px">Status</th>
+              <th style="width:160px">Acties</th>
+            </tr>`;
+
       const rows = filtered.map(o => {
-        const summary = pickSummary(o);
-        const email = (o.payload?.email || o.email || "—");
+        const isActive = selected && String(selected.id) === String(o.id);
+        const active = isActive ? 'style="background: rgba(2,6,23,.02)"' : "";
         const created = fmtDate(o.createdAt);
-        const active = selected && String(selected.id) === String(o.id) ? 'style="background: rgba(255,255,255,.05)"' : "";
+
+        if(activeTab === "contact"){
+          return `
+            <tr ${active}>
+              <td class="nowrap">${escapeHtml(created)}</td>
+              <td>
+                <button class="rowBtn" data-id="${escapeHtml(String(o.id))}">
+                  <div>
+                    <div style="font-weight:900">${escapeHtml(pickSummary(o))}</div>
+                    <div class="muted" style="margin-top:4px">${escapeHtml((o.message || "").slice(0,90))}${(o.message||"").length>90?"…":""}</div>
+                  </div>
+                </button>
+              </td>
+              <td class="nowrap">${escapeHtml(o.email || "—")}</td>
+              <td class="nowrap">
+                <button class="btn btn-ghost" data-id="${escapeHtml(String(o.id))}" data-action="details">Details</button>
+              </td>
+            </tr>
+          `;
+        }
+
+        const loc = o.type.includes("hous")
+          ? (o.housingLocations || o.locations || o.location || "—")
+          : (o.locations || o.location || "—");
+
+        const start = o.startDate ? String(o.startDate).slice(0,10) : "—";
+        const emailTel = [o.email || "—", o.phone || ""].filter(Boolean).join(" / ");
 
         return `
           <tr ${active}>
-            <td class="nowrap">
-              <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
-                <span class="${typeClass(o.type)}">${escapeHtml(o.type || "—")}</span>
-                <span class="muted" style="font-weight:800">${escapeHtml(o.status || "Nieuw")}</span>
-              </div>
-            </td>
+            <td class="nowrap">${escapeHtml(String(o.id ?? "—"))}</td>
+            <td class="nowrap"><span class="typeTag">${escapeHtml(o.type || "—")}</span></td>
             <td>
-              <button class="rowBtn" data-id="${escapeHtml(o.id)}">
+              <button class="rowBtn" data-id="${escapeHtml(String(o.id))}">
                 <div>
-                  <div style="font-weight:800">${escapeHtml(summary)}</div>
-                  <div class="muted" style="margin-top:4px">${escapeHtml(email)}</div>
+                  <div style="font-weight:900">${escapeHtml(o.company || o.name || "—")}</div>
+                  <div class="muted" style="margin-top:4px">${escapeHtml(o.contactPerson || o.name || "")}</div>
                 </div>
-                <div class="muted nowrap" style="font-weight:700">${escapeHtml(created)}</div>
               </button>
+            </td>
+            <td>${escapeHtml(loc)}</td>
+            <td class="nowrap">${escapeHtml(start)}</td>
+            <td class="nowrap">${escapeHtml(emailTel)}</td>
+            <td class="nowrap">${escapeHtml(o.status || "Nieuw")}</td>
+            <td class="nowrap">
+              <button class="btn btn-ghost" data-id="${escapeHtml(String(o.id))}" data-action="details">Details</button>
             </td>
           </tr>
         `;
@@ -553,225 +803,377 @@
 
       tableWrap.innerHTML = `
         <table>
-          <thead>
-            <tr>
-              <th style="width:170px">Type / Status</th>
-              <th>Samenvatting</th>
-            </tr>
-          </thead>
+          <thead>${head}</thead>
           <tbody>${rows}</tbody>
         </table>
       `;
 
-      tableWrap.querySelectorAll("[data-id]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-id");
+      tableWrap.querySelectorAll("[data-id]").forEach(el => {
+        el.addEventListener("click", () => {
+          const id = el.getAttribute("data-id");
           const o = filtered.find(x => String(x.id) === String(id));
-          if(o){
-            selected = o;
-            selIdEl.textContent = String(o.id ?? "—");
-            renderDetail(o);
-            renderTable();
-          }
+          if(o) selectRow(o);
         });
       });
     }
 
-    function offerKeyValues(row){
-      const p = row.payload || {};
-      const type = String(row.type || p.type || "").toLowerCase();
-
-      if(type.includes("zak")){
-        return [
-          ["Type", "Zakelijk – schoonmaak"],
-          ["Status", row.status || "Nieuw"],
-          ["Datum", fmtDate(row.createdAt)],
-          ["Bedrijf", p.company || ""],
-          ["Contactpersoon", p.contactPerson || ""],
-          ["E-mail", p.email || ""],
-          ["Telefoon", p.phone || ""],
-          ["Locatie(s)", p.locations || ""],
-          ["Startdatum", p.startDate || ""],
-          ["Frequentie", p.frequency || ""],
-          ["Diensten", (p.services || []).join(", ")],
-          ["m²", p.m2 || ""],
-          ["Gebruikers/medewerkers", p.users || ""],
-          ["Toelichting", p.notes || ""],
-        ];
-      }
-
-      if(type.includes("hous")){
-        return [
-          ["Type", "Housing & personeelswoningen"],
-          ["Status", row.status || "Nieuw"],
-          ["Datum", fmtDate(row.createdAt)],
-          ["Bedrijf", p.company || ""],
-          ["Contactpersoon", p.contactPerson || ""],
-          ["E-mail", p.email || ""],
-          ["Telefoon", p.phone || ""],
-          ["Regio/locaties", p.housingLocations || ""],
-          ["Bedden/personen", p.beds || ""],
-          ["Startdatum", p.startDate || ""],
-          ["Looptijd", p.term || ""],
-          ["Type huisvesting", p.housingType || ""],
-          ["Diensten", (p.services || []).join(", ")],
-          ["Budget", p.budget || ""],
-          ["Toelichting", p.notes || ""],
-        ];
-      }
-
-      return [
-        ["Type", "Particulier – schoonmaak thuis"],
-        ["Status", row.status || "Nieuw"],
-        ["Datum", fmtDate(row.createdAt)],
-        ["Naam", p.name || ""],
-        ["E-mail", p.email || ""],
-        ["Telefoon", p.phone || ""],
-        ["Adres", p.address || ""],
-        ["Woningtype", p.homeType || ""],
-        ["m²", p.m2 || ""],
-        ["Slaapkamers", p.bedrooms || ""],
-        ["Badkamers", p.bathrooms || ""],
-        ["Schoonmaaksoort", p.cleaningType || ""],
-        ["Voorkeursdag", p.preferredDay || ""],
-        ["Dagdeel", p.preferredPart || ""],
-        ["Toelichting", p.notes || ""],
-      ];
+    function kvRow(k, v){
+      if(v === null || v === undefined) return "";
+      const s = String(v).trim();
+      if(!s) return "";
+      return `<div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(s)}</div>`;
     }
 
-    function renderKV(kv){
-      const rows = kv
-        .filter(([k,v]) => String(v || "").trim() !== "")
-        .map(([k,v]) => `
-          <div class="kv__row">
-            <div class="kv__k">${escapeHtml(k)}</div>
-            <div class="kv__v">${escapeHtml(String(v))}</div>
+    function renderDetails(o){
+      const p = o.payload || {};
+      const type = (o.type || "").toLowerCase();
+
+      if(activeTab === "contact"){
+        return `
+          <h3>Contact</h3>
+          <div class="kv">
+            ${kvRow("Datum", fmtDate(o.createdAt))}
+            ${kvRow("Naam", o.name || p.name || "")}
+            ${kvRow("Bedrijf", o.company || p.company || "")}
+            ${kvRow("Email", o.email || p.email || "")}
+            ${kvRow("Telefoon", o.phone || p.phone || "")}
+            ${kvRow("Onderwerp", o.subject || p.subject || "")}
           </div>
-        `).join("");
-
-      return `<div class="kv">${rows || `<div class="empty">Geen details beschikbaar.</div>`}</div>`;
-    }
-
-    async function saveStatus(id, status){
-      const url = `/api/offers/${encodeURIComponent(id)}/status`;
-      const res = await fetch(url, {
-        method: "PATCH",
-        headers: { "Content-Type":"application/json", "Accept":"application/json" },
-        body: JSON.stringify({ status })
-      });
-      const out = await res.json().catch(() => ({}));
-      if(!res.ok || !out.success){
-        const msg = out.error || `Status opslaan mislukt (${res.status})`;
-        throw new Error(msg);
+          <div class="hr"></div>
+          <div class="kv">
+            <div class="k">Bericht</div>
+            <div class="v">${escapeHtml(o.message || p.message || p.notes || "—")}</div>
+          </div>
+        `;
       }
-      return out.data;
-    }
 
-    function renderDetail(o){
-      const kv = offerKeyValues(o);
-      const currentStatus = String(o.status || "Nieuw").trim();
+      let headerTitle = (activeTab === "offers") ? "Offerte" : "Housing aanvraag";
+      if(type.includes("zak")) headerTitle = "Zakelijk – aanvraag";
+      if(type.includes("hous")) headerTitle = "Housing – aanvraag";
+      if(type.includes("part")) headerTitle = "Particulier – aanvraag";
 
-      const statusOptions = ALLOWED_STATUS.map(s => {
-        const sel = s === currentStatus ? "selected" : "";
-        return `<option ${sel}>${escapeHtml(s)}</option>`;
-      }).join("");
-
-      detailWrap.innerHTML = `
-        <h3>${escapeHtml(o.type || "Aanvraag")}</h3>
-
-        ${renderKV(kv)}
-
-        <div class="statusRow">
-          <div class="muted" style="font-weight:800">Status wijzigen</div>
-          <select id="statusSelect">${statusOptions}</select>
-          <button class="btn" id="saveStatusBtn">Opslaan</button>
+      let html = `
+        <h3>${escapeHtml(headerTitle)}</h3>
+        <div class="kv">
+          ${kvRow("Datum", fmtDate(o.createdAt))}
+          ${kvRow("Status", o.status || "Nieuw")}
+          ${kvRow("Bedrijf", p.company || o.company || "")}
+          ${kvRow("Contactpersoon", p.contactPerson || o.contactPerson || "")}
+          ${kvRow("Email", p.email || o.email || "")}
+          ${kvRow("Telefoon", p.phone || o.phone || "")}
         </div>
-
-        <div class="toast" id="toast"></div>
-
-        <div class="box"><strong>Ruwe payload (voor debug)</strong>\n\n${escapeHtml(JSON.stringify(o.payload || {}, null, 2))}</div>
       `;
 
-      const toast = detailWrap.querySelector("#toast");
-      const statusSelect = detailWrap.querySelector("#statusSelect");
-      const saveBtn = detailWrap.querySelector("#saveStatusBtn");
-
-      function showToast(text, variant){
-        toast.textContent = text;
-        toast.classList.add("show");
-        toast.classList.remove("ok","err");
-        if(variant === "ok") toast.classList.add("ok");
-        if(variant === "err") toast.classList.add("err");
+      if(type.includes("zak")){
+        html += `
+          <div class="hr"></div>
+          <div class="kv">
+            ${kvRow("Locatie(s)", p.locations || o.locations || o.location || "")}
+            ${kvRow("Startdatum", p.startDate || o.startDate || "")}
+            ${kvRow("Frequentie", p.frequency || "")}
+            ${kvRow("Diensten", Array.isArray(p.services) ? p.services.join(", ") : (p.services || ""))}
+            ${kvRow("m²", p.m2 || "")}
+            ${kvRow("Gebruikers/medewerkers", p.users || "")}
+            ${kvRow("Toelichting", p.notes || "")}
+          </div>
+        `;
+      } else if(type.includes("hous")){
+        html += `
+          <div class="hr"></div>
+          <div class="kv">
+            ${kvRow("Regio/locaties", p.housingLocations || o.housingLocations || p.locations || "")}
+            ${kvRow("Bedden/personen", p.beds || o.beds || "")}
+            ${kvRow("Startdatum", p.startDate || o.startDate || "")}
+            ${kvRow("Looptijd", p.term || "")}
+            ${kvRow("Type huisvesting", p.housingType || "")}
+            ${kvRow("Budget", p.budget || "")}
+            ${kvRow("Toelichting", p.notes || "")}
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="hr"></div>
+          <div class="kv">
+            ${kvRow("Naam", p.name || o.name || "")}
+            ${kvRow("Adres", p.address || "")}
+            ${kvRow("Woningtype", p.homeType || "")}
+            ${kvRow("m²", p.m2 || "")}
+            ${kvRow("Slaapkamers", p.bedrooms || "")}
+            ${kvRow("Badkamers", p.bathrooms || "")}
+            ${kvRow("Schoonmaaksoort", p.cleaningType || "")}
+            ${kvRow("Voorkeursdag", p.preferredDay || "")}
+            ${kvRow("Dagdeel", p.preferredPart || "")}
+            ${kvRow("Toelichting", p.notes || "")}
+          </div>
+        `;
       }
 
-      saveBtn.addEventListener("click", async () => {
-        const newStatus = String(statusSelect.value || "").trim();
-        if(!ALLOWED_STATUS.includes(newStatus)){
-          showToast("Ongeldige status gekozen.", "err");
-          return;
-        }
+      if(activeTab === "offers" || activeTab === "requests"){
+        const current = (o.status || "Nieuw").trim();
+        html += `
+          <div class="hr"></div>
+          <div class="inlineActions">
+            <select class="select" id="statusSelect">
+              ${STATUS_OPTIONS.map(s => `<option value="${escapeHtml(s)}" ${s===current?"selected":""}>${escapeHtml(s)}</option>`).join("")}
+            </select>
+            <button class="btn" id="saveStatusBtn">Status opslaan</button>
+            <span class="muted" id="saveHint">Wijzig de status en klik op opslaan.</span>
+          </div>
+        `;
+      }
 
-        saveBtn.disabled = true;
-        showToast("Opslaan…", "");
-
-        try{
-          await saveStatus(o.id, newStatus);
-
-          // Update lokaal + refresh table
-          const idx = all.findIndex(x => String(x.id) === String(o.id));
-          if(idx >= 0) all[idx] = { ...all[idx], status: newStatus };
-          selected = { ...selected, status: newStatus };
-
-          showToast("Status opgeslagen.", "ok");
-          applyFilters(); // rendert tabel + detail opnieuw
-        }catch(e){
-          console.error(e);
-          showToast(e.message || "Opslaan mislukt.", "err");
-        }finally{
-          saveBtn.disabled = false;
-        }
-      });
+      return html;
     }
 
-    async function loadOffers(){
+    function selectRow(o){
+      selected = o;
+      selIdEl.textContent = String(o.id ?? "—");
+      detailWrap.innerHTML = renderDetails(o);
+      renderTable();
+
+      const saveBtn = document.getElementById("saveStatusBtn");
+      const sel = document.getElementById("statusSelect");
+      if(saveBtn && sel){
+        saveBtn.addEventListener("click", async () => {
+          const newStatus = (sel.value || "").trim();
+          if(!newStatus) return;
+
+          saveBtn.disabled = true;
+          try{
+            if(activeTab === "offers"){
+              await apiFetchJson(API.patchOfferStatus(o.id), {
+                method: "PATCH",
+                headers: { "Content-Type":"application/json" },
+                body: JSON.stringify({ status: newStatus })
+              });
+            } else if(activeTab === "requests"){
+              // alleen als backend die route heeft
+              await apiFetchJson(API.patchRequestStatus(o.id), {
+                method: "PATCH",
+                headers: { "Content-Type":"application/json" },
+                body: JSON.stringify({ status: newStatus })
+              });
+            }
+
+            o.status = newStatus;
+            const list = store[activeTab];
+            const idx = list.findIndex(x => String(x.id) === String(o.id));
+            if(idx >= 0) list[idx].status = newStatus;
+
+            setToast("Status opgeslagen.", "ok");
+            applyFilters();
+            selectRow(o);
+          }catch(err){
+            console.error(err);
+            setToast("Status opslaan mislukt: " + (err?.message || "error"), "error");
+          }finally{
+            saveBtn.disabled = false;
+          }
+        });
+      }
+    }
+
+    async function loadAll(){
       refreshBtn.disabled = true;
       tableWrap.innerHTML = `<div class="empty">Laden…</div>`;
 
       try{
-        const res = await fetch(API_OFFERS, { headers: { "Accept":"application/json" } });
-        const out = await res.json().catch(() => ({}));
+        // requests
+        try{
+          const r = await apiFetchJson(API.requests);
+          const data = Array.isArray(r) ? r : (r.data || []);
+          store.requests = (data || []).map(normalizeRow).sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+        }catch(_){ store.requests = []; }
 
-        const data = Array.isArray(out) ? out : (out.data || []);
-        all = (data || []).map(normalizeRow).sort((a,b) => {
-          const da = new Date(a.createdAt || 0).getTime();
-          const db = new Date(b.createdAt || 0).getTime();
-          return db - da;
-        });
+        // offers (bestaat zeker)
+        try{
+          const o = await apiFetchJson(API.offers);
+          const data = Array.isArray(o) ? o : (o.data || []);
+          store.offers = (data || []).map(normalizeRow).sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+        }catch(_){ store.offers = []; }
+
+        // contact
+        try{
+          const c = await apiFetchJson(API.contact);
+          const data = Array.isArray(c) ? c : (c.data || []);
+          store.contact = (data || []).map(normalizeRow).sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+        }catch(_){ store.contact = []; }
 
         updatedAtEl.textContent = fmtDate(new Date().toISOString());
-        applyFilters();
 
-        if(!selected && filtered.length){
-          selected = filtered[0];
-          selIdEl.textContent = String(selected.id ?? "—");
-          renderDetail(selected);
-          renderTable();
+        all = store[activeTab].slice();
+        applyFilters();
+        if(filtered.length) selectRow(filtered[0]);
+        else{
+          selected = null;
+          selIdEl.textContent = "—";
+          detailWrap.innerHTML = `<div class="empty">Geen items om te tonen.</div>`;
         }
 
       }catch(e){
         console.error(e);
-        tableWrap.innerHTML = `<div class="empty">Kan offers niet laden. Controleer of <code>/api/offers</code> bestaat.</div>`;
+        tableWrap.innerHTML = `<div class="empty">Kon data niet laden. Check endpoints + login.</div>`;
       }finally{
         refreshBtn.disabled = false;
       }
     }
 
-    qEl.addEventListener("input", () => applyFilters());
-    typeEl.addEventListener("change", () => applyFilters());
-    statusFilterEl.addEventListener("change", () => applyFilters());
-    refreshBtn.addEventListener("click", () => loadOffers());
+    function toCsv(rows, columns){
+      const esc = (v) => {
+        const s = String(v ?? "");
+        if(/[",\n\r;]/.test(s)) return `"${s.replaceAll('"','""')}"`;
+        return s;
+      };
+      const head = columns.map(c => esc(c.label)).join(",");
+      const body = rows.map(r => columns.map(c => esc(c.get(r))).join(",")).join("\n");
+      return head + "\n" + body + "\n";
+    }
+    function downloadCsv(filename, csv){
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
 
-    loadOffers();
+    function exportTab(tab){
+      const rows = (store[tab] || []).slice();
+      const ts = new Date().toISOString().slice(0,10);
+
+      if(tab === "offers"){
+        const cols = [
+          { label:"id", get:r=>r.id },
+          { label:"type", get:r=>r.type },
+          { label:"status", get:r=>r.status },
+          { label:"createdAt", get:r=>r.createdAt },
+          { label:"company", get:r=>r.company },
+          { label:"contactPerson", get:r=>r.contactPerson },
+          { label:"email", get:r=>r.email },
+          { label:"phone", get:r=>r.phone },
+          { label:"locations", get:r=>r.locations || r.location || r.housingLocations },
+          { label:"startDate", get:r=>r.startDate },
+          { label:"payload_json", get:r=>JSON.stringify(r.payload || {}) },
+        ];
+        downloadCsv(`profoma-offers-${ts}.csv`, toCsv(rows, cols));
+        return;
+      }
+
+      if(tab === "requests"){
+        const cols = [
+          { label:"id", get:r=>r.id },
+          { label:"type", get:r=>r.type },
+          { label:"status", get:r=>r.status },
+          { label:"createdAt", get:r=>r.createdAt },
+          { label:"company", get:r=>r.company },
+          { label:"contactPerson", get:r=>r.contactPerson },
+          { label:"email", get:r=>r.email },
+          { label:"phone", get:r=>r.phone },
+          { label:"housingLocations", get:r=>r.housingLocations || r.locations || r.location },
+          { label:"beds", get:r=>r.beds },
+          { label:"startDate", get:r=>r.startDate },
+          { label:"payload_json", get:r=>JSON.stringify(r.payload || {}) },
+        ];
+        downloadCsv(`profoma-requests-${ts}.csv`, toCsv(rows, cols));
+        return;
+      }
+
+      const cols = [
+        { label:"id", get:r=>r.id },
+        { label:"createdAt", get:r=>r.createdAt },
+        { label:"name", get:r=>r.name },
+        { label:"company", get:r=>r.company },
+        { label:"email", get:r=>r.email },
+        { label:"phone", get:r=>r.phone },
+        { label:"subject", get:r=>r.subject },
+        { label:"message", get:r=>r.message },
+        { label:"payload_json", get:r=>JSON.stringify(r.payload || {}) },
+      ];
+      downloadCsv(`profoma-contact-${ts}.csv`, toCsv(rows, cols));
+    }
+
+    async function doLogin(){
+      const username = (loginUserEl.value || "").trim();
+      const password = (loginPassEl.value || "").trim();
+      if(!username || !password){
+        setToast("Vul username en password in.", "error");
+        return;
+      }
+
+      loginBtn.disabled = true;
+      try{
+        const res = await fetch(API.login, {
+          method: "POST",
+          headers: { "Content-Type":"application/json", "Accept":"application/json" },
+          body: JSON.stringify({ username, password })
+        });
+        const out = await res.json().catch(() => ({}));
+        if(!res.ok) throw new Error(out?.error || "Login mislukt");
+        if(!out?.token) throw new Error("Geen token ontvangen");
+
+        tokenSet(out.token);
+        hideLogin();
+        setToast("Ingelogd.", "ok");
+        await loadAll();
+      }catch(e){
+        console.error(e);
+        setToast("Login mislukt: " + (e?.message || "error"), "error");
+      }finally{
+        loginBtn.disabled = false;
+      }
+    }
+
+    tabRequestsEl.addEventListener("click", () => setActiveTab("requests"));
+    tabOffersEl.addEventListener("click", () => setActiveTab("offers"));
+    tabContactEl.addEventListener("click", () => setActiveTab("contact"));
+
+    qEl.addEventListener("input", () => applyFilters());
+    statusFilterEl.addEventListener("change", () => applyFilters());
+    refreshBtn.addEventListener("click", () => loadAll());
+
+    exportRequestsBtn.addEventListener("click", () => exportTab("requests"));
+    exportOffersBtn.addEventListener("click", () => exportTab("offers"));
+    exportContactBtn.addEventListener("click", () => exportTab("contact"));
+
+    logoutBtn.addEventListener("click", () => {
+      tokenClear();
+      setToast("Uitgelogd.", "ok");
+      showLogin(true);
+    });
+
+    loginBtn.addEventListener("click", doLogin);
+    loginPassEl.addEventListener("keydown", (e) => {
+      if(e.key === "Enter") doLogin();
+    });
+
+    loginCloseBtn.addEventListener("click", () => {
+      if(!tokenGet()){
+        setToast("Je moet eerst inloggen.", "error");
+        return;
+      }
+      hideLogin();
+    });
+
+    loginDemoBtn.addEventListener("click", () => {
+      loginUserEl.value = "admin";
+      loginPassEl.focus();
+    });
+
+    (async function init(){
+      if(!tokenGet()){
+        showLogin(true);
+        return;
+      }
+      try{
+        await loadAll();
+      }catch(e){
+        console.error(e);
+        showLogin(true);
+      }
+    })();
   </script>
 </body>
 </html>
